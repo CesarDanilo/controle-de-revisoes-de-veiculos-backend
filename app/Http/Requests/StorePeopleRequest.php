@@ -23,7 +23,6 @@ class StorePeopleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'user_id' => ['required', 'integer', 'exists:users,id'],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:people'],
             'document' => ['required', 'string', 'max:20'],

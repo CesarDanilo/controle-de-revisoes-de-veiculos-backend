@@ -7,6 +7,7 @@ use App\Http\Requests\UpdatePeopleRequest;
 use App\Models\People;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class PeopleController extends Controller
 {
@@ -18,7 +19,7 @@ class PeopleController extends Controller
         $current_page = $request->query('current_page') ?? 1;
         $per_page = 10;
         $skip = ($current_page - 1) * $per_page;
-        $people = People::skip($skip)->take($per_page)->get();
+        $people = People::where('user_id', Auth::id())->skip($skip)->take($per_page)->get();
         return response()->json($people, 200);
     }
 
@@ -27,16 +28,21 @@ class PeopleController extends Controller
      */
     public function store(StorePeopleRequest $request)
     {
-        $validatedData = $request->validated();
         try {
-            $user = User::findOrFail($validatedData['user_id']);
-            if (!$user) {
-                return response()->json(['error' => 'Usuário não encontrado!'], 404);
-            }
-            $people = People::create($validatedData);
-            return response()->json($people, 201);
+
+            $person = People::create([
+                ...$request->validated(),
+                'user_id' => Auth::id(),
+            ]);
+
+            return response()->json($person, 201);
+
         } catch (\Exception $ex) {
-            return response()->json(['error' => 'Falha ao criar pessoa!'], 500);
+
+            return response()->json([
+                'error' => 'Falha ao criar pessoa!'
+            ], 500);
+
         }
     }
 
@@ -46,7 +52,7 @@ class PeopleController extends Controller
     public function show(string $id)
     {
         try {
-            $people = People::findOrFail($id);
+            $people = People::where('user_id', Auth::id())->findOrFail($id);
             return response()->json($people, 200);
         } catch (\Exception $ex) {
             return response()->json(['error' => 'Falha ao buscar pessoa!'], 404);
@@ -60,7 +66,7 @@ class PeopleController extends Controller
     {
         $validatedData = $request->validated();
         try {
-            $people = People::findOrFail($id);
+            $people = People::where('user_id', Auth::id())->findOrFail($id);
             $people->update($validatedData);
             return response()->json($people, 200);
         } catch (\Exception $ex) {
@@ -75,7 +81,7 @@ class PeopleController extends Controller
     public function destroy(string $id)
     {
         try {
-            $people = People::findOrFail($id);
+            $people = People::where('user_id', Auth::id())->findOrFail($id);
             $people->delete();
             return response()->json(['message' => 'Pessoa deletada com sucesso!'], 200);
         } catch (\Exception $ex) {
