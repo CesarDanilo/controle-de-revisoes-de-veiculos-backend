@@ -5,7 +5,7 @@ namespace App\Http\Requests;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreVehicleRequest extends FormRequest
+class UpdateRevisionsRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -23,12 +23,13 @@ class StoreVehicleRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'model' => 'required|string|max:255',
-            'year' => 'required|integer|min:1900|max:' . (date('Y') + 1),
-            'color' => 'required|string|max:255',
-            'brand_id' => 'required|exists:brands,id',
-            'people_id' => 'nullable|exists:people,id',
-            'license_plate' => 'required|string|max:10|unique:vehicle,license_plate',
+            'vehicle_id' => 'required|exists:vehicle,id',
+            'description' => 'nullable|string|max:255',
+            'revision_date' => 'required|date',
+            'cost' => 'nullable|numeric|min:0',
+            'next_revision_date' => 'nullable|date|after:revision_date',
+            'next_revision_km' => 'nullable|integer|min:0',
+            'km' => 'nullable|integer|min:0',
         ];
     }
 }
