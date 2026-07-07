@@ -2,17 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUuidPrimaryKey;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
 class Brands extends Model
 {
-    use HasUuids;
+    use HasUuidPrimaryKey;
 
     protected $table = 'brands';
-
-    protected $keyType = 'string';
-    public $incrementing = false;
     
     protected $fillable = [
         'user_id',
