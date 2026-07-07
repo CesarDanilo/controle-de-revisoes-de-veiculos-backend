@@ -8,11 +8,17 @@ use App\Models\Brands;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+use Knuckles\Scribe\Attributes\Endpoint;
+use Knuckles\Scribe\Attributes\Group;
+
+
+#[Group('Marcas')]
 class BrandsController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
+    #[Endpoint('Listar marcas', 'Retorna todas as marcas cadastradas.')]
     public function index(Request $request)
     {
         $current_page = $request->query('current_page') ?? 1;
@@ -25,6 +31,7 @@ class BrandsController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+    #[Endpoint('Criar marca', 'Cria uma nova marca para o usuário autenticado.')]
     public function store(StoreBrandsRequest $request)
     {
         try {
@@ -48,6 +55,7 @@ class BrandsController extends Controller
     /**
      * Display the specified resource.
      */
+    #[Endpoint('Buscar marca', 'Retorna os dados de uma marca específica.')]
     public function show(string $id)
     {
         try {
@@ -61,6 +69,7 @@ class BrandsController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    #[Endpoint('Atualizar marca', 'Atualiza os dados de uma marca específica.')]
     public function update(UpdateBrandsRequest $request, string $id)
     {
         $validatedData = $request->validated();
@@ -77,6 +86,7 @@ class BrandsController extends Controller
     /**
      * Remove the specified resource from storage.
      */
+    #[Endpoint('Deletar marca', 'Deleta uma marca específica.')]
     public function destroy(string $id)
     {
         try {

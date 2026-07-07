@@ -9,11 +9,17 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+use Knuckles\Scribe\Attributes\Endpoint;
+use Knuckles\Scribe\Attributes\Group;
+
+
+#[Group('Pessoas')]
 class PeopleController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
+    #[Endpoint('Listar pessoas', 'Retorna todas as pessoas cadastradas do usuário autenticado.')]
     public function index(Request $request)
     {
         $current_page = $request->query('current_page') ?? 1;
@@ -26,6 +32,7 @@ class PeopleController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+    #[Endpoint('Criar pessoa', 'Cria uma nova pessoa para o usuário autenticado.')]
     public function store(StorePeopleRequest $request)
     {
         try {
@@ -49,6 +56,7 @@ class PeopleController extends Controller
     /**
      * Display the specified resource.
      */
+    #[Endpoint('Buscar pessoa', 'Retorna os dados de uma pessoa específica do usuário autenticado.')]
     public function show(string $id)
     {
         try {
@@ -62,6 +70,7 @@ class PeopleController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    #[Endpoint('Atualizar pessoa', 'Atualiza os dados de uma pessoa específica do usuário autenticado.')]
     public function update(UpdatePeopleRequest $request, string $id)
     {
         $validatedData = $request->validated();
@@ -78,6 +87,7 @@ class PeopleController extends Controller
     /**
      * Remove the specified resource from storage.
      */
+    #[Endpoint('Deletar pessoa', 'Deleta uma pessoa específica do usuário autenticado.')]
     public function destroy(string $id)
     {
         try {

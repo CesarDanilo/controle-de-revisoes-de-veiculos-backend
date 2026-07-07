@@ -8,11 +8,16 @@ use App\Models\Vehicle;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+use Knuckles\Scribe\Attributes\Endpoint;
+use Knuckles\Scribe\Attributes\Group;
+
+#[Group('Veículos')]
 class VehicleController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
+    #[Endpoint('Listar veículos', 'Retorna todos os veículos cadastrados do usuário autenticado.')]
     public function index()
     {
         return Vehicle::all();
@@ -21,6 +26,7 @@ class VehicleController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+    #[Endpoint('Criar veículo', 'Cria um novo veículo para o usuário autenticado.')]
     public function store(StoreVehicleRequest $request)
     {
         try {
@@ -44,6 +50,7 @@ class VehicleController extends Controller
     /**
      * Display the specified resource.
      */
+    #[Endpoint('Buscar veículo', 'Retorna os dados de um veículo específico.')]
     public function show(string $id)
     {
         try {
@@ -57,6 +64,7 @@ class VehicleController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    #[Endpoint('Atualizar veículo', 'Atualiza os dados de um veículo específico.')]
     public function update(UpdateVehicleRequest $request, string $id)
     {
         $validatedData = $request->validated();
@@ -72,6 +80,7 @@ class VehicleController extends Controller
     /**
      * Remove the specified resource from storage.
      */
+    #[Endpoint('Deletar veículo', 'Deleta um veículo específico.')]
     public function destroy(string $id)
     {
         try {

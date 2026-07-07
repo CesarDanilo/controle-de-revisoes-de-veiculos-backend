@@ -8,11 +8,16 @@ use App\Models\Revisions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
+use Knuckles\Scribe\Attributes\Endpoint;
+use Knuckles\Scribe\Attributes\Group;
+
+#[Group('Revisões')]
 class RevisionsController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
+    #[Endpoint('Listar revisões', 'Retorna todas as revisões cadastradas do usuário autenticado.')]
     public function index(Request $request)
     {
         $current_page = $request->query('current_page') ?? 1;
@@ -25,6 +30,7 @@ class RevisionsController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+    #[Endpoint('Criar revisão', 'Cria uma nova revisão.')]
     public function store(StoreRevisionsRequest $request)
     {
         try {
@@ -48,6 +54,7 @@ class RevisionsController extends Controller
     /**
      * Display the specified resource.
      */
+    #[Endpoint('Buscar revisão', 'Retorna os dados de uma revisão específica.')]
     public function show(string $id)
     {
         try {
@@ -61,6 +68,7 @@ class RevisionsController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    #[Endpoint('Atualizar revisão', 'Atualiza os dados de uma revisão específica.')]
     public function update(UpdateRevisionsRequest $request, string $id)
     {
         $validatedData = $request->validated();
@@ -77,6 +85,7 @@ class RevisionsController extends Controller
     /**
      * Remove the specified resource from storage.
      */
+    #[Endpoint('Deletar revisão', 'Deleta uma revisão específica.')]
     public function destroy(string $id)
     {
         try {

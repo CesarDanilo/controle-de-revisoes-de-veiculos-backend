@@ -7,11 +7,16 @@ use App\Http\Requests\UpdateUserRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 
+use Knuckles\Scribe\Attributes\Endpoint;
+use Knuckles\Scribe\Attributes\Group;
+
+#[Group('Usuários')]
 class UserController extends Controller
 {
     /**
      * Display a listing of the resource.
      */
+    #[Endpoint('Listar usuários', 'Retorna todos os usuários cadastrados.')]
     public function index(Request $request)
     {
         $current_page = $request->query('current_page') ?? 1;
@@ -24,6 +29,7 @@ class UserController extends Controller
     /**
      * Store a newly created resource in storage.
      */
+    #[Endpoint('Criar usuário', 'Cria um novo usuário.')]
     public function store(StoreUserRequest $request)
     {
         $validatedData = $request->validated();
@@ -44,6 +50,7 @@ class UserController extends Controller
     /**
      * Display the specified resource.
      */
+    #[Endpoint('Buscar usuário', 'Retorna os dados de um usuário específico.')]
     public function show(string $id)
     {
         try {
@@ -57,6 +64,7 @@ class UserController extends Controller
     /**
      * Update the specified resource in storage.
      */
+    #[Endpoint('Atualizar usuário', 'Atualiza os dados de um usuário específico.')]
     public function update(UpdateUserRequest $request, string $id)
     {
         $validatedData = $request->validated();
@@ -75,6 +83,7 @@ class UserController extends Controller
     /**
      * Remove the specified resource from storage.
      */
+    #[Endpoint('Deletar usuário', 'Deleta um usuário específico.')]
     public function destroy(string $id)
     {
         try {
