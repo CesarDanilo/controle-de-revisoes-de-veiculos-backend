@@ -9,6 +9,9 @@ use App\Http\Controllers\VehicleController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
+use App\Http\Controllers\Auth\GoogleAuthController;
+
+
 Route::apiResource('users', UserController::class);
 
 Route::post('login', [AuthController::class, 'login']);
@@ -32,3 +35,6 @@ Route::middleware('auth:sanctum')->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('revisions', RevisionsController::class);
 });
+
+Route::get('/auth/google/redirect', [GoogleAuthController::class, 'redirect']);
+Route::get('/auth/google/callback', [GoogleAuthController::class, 'callback']);
