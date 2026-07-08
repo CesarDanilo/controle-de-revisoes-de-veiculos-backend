@@ -20,7 +20,7 @@ class VehicleController extends Controller
     #[Endpoint('Listar veículos', 'Retorna todos os veículos cadastrados do usuário autenticado.')]
     public function index()
     {
-        return Vehicle::all();
+        return Vehicle::where('user_id', Auth::id())->get();
     }
 
     /**

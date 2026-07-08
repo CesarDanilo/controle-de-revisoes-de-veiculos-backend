@@ -20,11 +20,21 @@ class RevisionsController extends Controller
     #[Endpoint('Listar revisões', 'Retorna todas as revisões cadastradas do usuário autenticado.')]
     public function index(Request $request)
     {
-        $current_page = $request->query('current_page') ?? 1;
-        $per_page = 10;
-        $skip = ($current_page - 1) * $per_page;
-        $revisions = Revisions::skip($skip)->take($per_page)->get();
-        return response()->json($revisions, 200);
+        $query = Revisions::where('user_id', Auth::id());
+
+        // Filter by vehicle when the frontend asks for a specific vehicle's
+        // revisions (RevisionsModal.vue calls this once per vehicle).
+        if ($request->filled('vehicle_id')) {
+            $query->where('vehicle_id', $request->query('vehicle_id'));
+        }
+
+        $per_page = $request->query('per_page', 15);
+
+        $revisions = $query
+            ->orderByDesc('revision_date')
+            ->paginate($per_page);
+
+        return response()->json($revisions->items(), 200);
     }
 
     /**
@@ -77,7 +87,6 @@ class RevisionsController extends Controller
             $revision->update($validatedData);
             return response()->json($revision, 200);
         } catch (\Exception $ex) {
-            dd($ex);
             return response()->json(['error' => 'Falha ao atualizar revisão!'], 500);
         }
     }
