@@ -19,14 +19,17 @@ return new class extends Migration
                 ->onDelete('cascade');
 
             $table->string('name');
-            $table->string('email')->unique();
-            $table->string('document')->unique(); // CPF
+            $table->string('email');
+            $table->string('document'); // CPF
             $table->string('phone')->nullable();
 
             $table->date('birth_date');
             $table->enum('gender', ['M', 'F']);
 
             $table->timestamps();
+
+            $table->unique(['user_id', 'email']);
+            $table->unique(['user_id', 'document']);
         });
     }
     /**
