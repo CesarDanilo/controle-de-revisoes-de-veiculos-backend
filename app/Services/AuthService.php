@@ -26,7 +26,7 @@ class AuthService
 
         $user->tokens()->delete();
 
-        $token = $user->createToken('auth-token')->plainTextToken;
+        $token = $user->createToken('access_token')->plainTextToken;
 
         return [
             'message' => 'Login realizado com sucesso.',
