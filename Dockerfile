@@ -15,8 +15,9 @@ COPY . .
 
 RUN composer install --optimize-autoloader --no-dev --no-interaction
 
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
 EXPOSE 8000
 
-CMD php artisan migrate --force && \
-    php artisan config:cache && \
-    php artisan serve --host 0.0.0.0 --port $PORT
+CMD ["/app/start.sh"]
