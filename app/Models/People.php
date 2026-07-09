@@ -12,7 +12,6 @@ class People extends Model
 
     protected $table = 'people';
 
-
     protected $fillable = [
         'user_id',
         'name',

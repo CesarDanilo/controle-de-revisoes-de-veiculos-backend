@@ -34,7 +34,8 @@ endpoints:
         headers:
           cache-control: 'no-cache, private'
           content-type: application/json
-          access-control-allow-origin: '*'
+          access-control-allow-origin: 'http://localhost:5173'
+          access-control-allow-credentials: 'true'
         description: null
     responseFields: []
     auth: []
@@ -113,7 +114,7 @@ endpoints:
         name: birth_date
         description: 'Must be a valid date.'
         required: false
-        example: '2026-07-07T15:17:45'
+        example: '2026-07-09T01:47:54'
         type: string
         enumValues: []
         exampleWasSpecified: false
@@ -135,7 +136,7 @@ endpoints:
       email: zbailey@example.net
       document: iyvdljnikhwaykcm
       phone: yuwpwlvqwrsitcps
-      birth_date: '2026-07-07T15:17:45'
+      birth_date: '2026-07-09T01:47:54'
       gender: cqldzs
     fileParameters: []
     responses: []
@@ -189,7 +190,8 @@ endpoints:
         headers:
           cache-control: 'no-cache, private'
           content-type: application/json
-          access-control-allow-origin: '*'
+          access-control-allow-origin: 'http://localhost:5173'
+          access-control-allow-credentials: 'true'
         description: null
     responseFields: []
     auth: []
@@ -232,23 +234,12 @@ endpoints:
     queryParameters: []
     cleanQueryParameters: []
     bodyParameters:
-      user_id:
-        custom: []
-        name: user_id
-        description: 'Must match an existing stored value.'
-        required: true
-        example: 16
-        type: integer
-        enumValues: []
-        exampleWasSpecified: false
-        nullable: false
-        deprecated: false
       name:
         custom: []
         name: name
         description: 'Must not be greater than 255 characters.'
         required: true
-        example: 'n'
+        example: b
         type: string
         enumValues: []
         exampleWasSpecified: false
@@ -259,7 +250,7 @@ endpoints:
         name: email
         description: 'Must be a valid email address. Must not be greater than 255 characters.'
         required: true
-        example: ashly64@example.com
+        example: zbailey@example.net
         type: string
         enumValues: []
         exampleWasSpecified: false
@@ -270,7 +261,7 @@ endpoints:
         name: document
         description: 'Must not be greater than 20 characters.'
         required: true
-        example: vdljnikhwaykcmyu
+        example: iyvdljnikhwaykcm
         type: string
         enumValues: []
         exampleWasSpecified: false
@@ -281,7 +272,7 @@ endpoints:
         name: phone
         description: 'Must not be greater than 20 characters.'
         required: false
-        example: wpwlvqwrsitcpscq
+        example: yuwpwlvqwrsitcps
         type: string
         enumValues: []
         exampleWasSpecified: false
@@ -292,7 +283,7 @@ endpoints:
         name: birth_date
         description: 'Must be a valid date.'
         required: false
-        example: '2026-07-07T15:17:45'
+        example: '2026-07-09T01:47:54'
         type: string
         enumValues: []
         exampleWasSpecified: false
@@ -301,22 +292,23 @@ endpoints:
       gender:
         custom: []
         name: gender
-        description: 'Must not be greater than 10 characters.'
+        description: ''
         required: false
-        example: ldzsnr
+        example: F
         type: string
-        enumValues: []
+        enumValues:
+          - M
+          - F
         exampleWasSpecified: false
         nullable: true
         deprecated: false
     cleanBodyParameters:
-      user_id: 16
-      name: 'n'
-      email: ashly64@example.com
-      document: vdljnikhwaykcmyu
-      phone: wpwlvqwrsitcpscq
-      birth_date: '2026-07-07T15:17:45'
-      gender: ldzsnr
+      name: b
+      email: zbailey@example.net
+      document: iyvdljnikhwaykcm
+      phone: yuwpwlvqwrsitcps
+      birth_date: '2026-07-09T01:47:54'
+      gender: F
     fileParameters: []
     responses: []
     responseFields: []

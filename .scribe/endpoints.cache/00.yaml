@@ -32,11 +32,12 @@ endpoints:
       -
         custom: []
         status: 200
-        content: '[{"id":"019f3cd7-4a3c-73b7-be9f-420987d2f08d","name":"cesar","email":"cesar@gmail.com","status":true,"created_at":"2026-07-07T13:49:30.000000Z","updated_at":"2026-07-07T13:49:30.000000Z"},{"id":"019f3cfc-b59a-70e9-97cc-57620282e1c3","name":"cesar","email":"cesarpalacios@gmail.com","status":true,"created_at":"2026-07-07T14:30:22.000000Z","updated_at":"2026-07-07T14:30:22.000000Z"}]'
+        content: '[{"id":"019f4419-0d02-725c-af79-154175759dd3","name":"cesar danilo","email":"billypalacios616@gmail.com","status":true,"created_at":"2026-07-08T23:38:40.000000Z","updated_at":"2026-07-08T23:41:37.000000Z","google_id":null},{"id":"019f4308-f06b-7354-b876-a6d8fcb81e25","name":"C\u00e9sar Danilo","email":"cesardanilopalacios390@gmail.com","status":true,"created_at":"2026-07-08T18:41:27.000000Z","updated_at":"2026-07-08T23:41:55.000000Z","google_id":null},{"id":"019f4307-d3f9-73e7-9079-172ace3e2890","name":"C\u00e9sar Danilo","email":"cesardanilopalacios616@gmail.com","status":true,"created_at":"2026-07-08T18:40:14.000000Z","updated_at":"2026-07-08T23:42:39.000000Z","google_id":null}]'
         headers:
           cache-control: 'no-cache, private'
           content-type: application/json
-          access-control-allow-origin: '*'
+          access-control-allow-origin: 'http://localhost:5173'
+          access-control-allow-credentials: 'true'
         description: null
     responseFields: []
     auth: []
@@ -134,14 +135,14 @@ endpoints:
         name: id
         description: 'The ID of the user.'
         required: true
-        example: 019f3cd7-4a3c-73b7-be9f-420987d2f08d
+        example: 019f4419-0d02-725c-af79-154175759dd3
         type: string
         enumValues: []
         exampleWasSpecified: false
         nullable: false
         deprecated: false
     cleanUrlParameters:
-      id: 019f3cd7-4a3c-73b7-be9f-420987d2f08d
+      id: 019f4419-0d02-725c-af79-154175759dd3
     queryParameters: []
     cleanQueryParameters: []
     bodyParameters: []
@@ -151,11 +152,12 @@ endpoints:
       -
         custom: []
         status: 200
-        content: '{"id":"019f3cd7-4a3c-73b7-be9f-420987d2f08d","name":"cesar","email":"cesar@gmail.com","status":true,"created_at":"2026-07-07T13:49:30.000000Z","updated_at":"2026-07-07T13:49:30.000000Z"}'
+        content: '{"id":"019f4419-0d02-725c-af79-154175759dd3","name":"cesar danilo","email":"billypalacios616@gmail.com","status":true,"created_at":"2026-07-08T23:38:40.000000Z","updated_at":"2026-07-08T23:41:37.000000Z","google_id":null}'
         headers:
           cache-control: 'no-cache, private'
           content-type: application/json
-          access-control-allow-origin: '*'
+          access-control-allow-origin: 'http://localhost:5173'
+          access-control-allow-credentials: 'true'
         description: null
     responseFields: []
     auth: []
@@ -187,14 +189,14 @@ endpoints:
         name: id
         description: 'The ID of the user.'
         required: true
-        example: 019f3cd7-4a3c-73b7-be9f-420987d2f08d
+        example: 019f4419-0d02-725c-af79-154175759dd3
         type: string
         enumValues: []
         exampleWasSpecified: false
         nullable: false
         deprecated: false
     cleanUrlParameters:
-      id: 019f3cd7-4a3c-73b7-be9f-420987d2f08d
+      id: 019f4419-0d02-725c-af79-154175759dd3
     queryParameters: []
     cleanQueryParameters: []
     bodyParameters:
@@ -236,7 +238,7 @@ endpoints:
         name: status
         description: ''
         required: false
-        example: false
+        example: true
         type: boolean
         enumValues: []
         exampleWasSpecified: false
@@ -246,7 +248,7 @@ endpoints:
       name: b
       email: zbailey@example.net
       password: '-0pBNvYgxw'
-      status: false
+      status: true
     fileParameters: []
     responses: []
     responseFields: []
@@ -278,14 +280,14 @@ endpoints:
         name: id
         description: 'The ID of the user.'
         required: true
-        example: 019f3cd7-4a3c-73b7-be9f-420987d2f08d
+        example: 019f4419-0d02-725c-af79-154175759dd3
         type: string
         enumValues: []
         exampleWasSpecified: false
         nullable: false
         deprecated: false
     cleanUrlParameters:
-      id: 019f3cd7-4a3c-73b7-be9f-420987d2f08d
+      id: 019f4419-0d02-725c-af79-154175759dd3
     queryParameters: []
     cleanQueryParameters: []
     bodyParameters: []
