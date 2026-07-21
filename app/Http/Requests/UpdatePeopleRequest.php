@@ -47,7 +47,7 @@ class UpdatePeopleRequest extends FormRequest
             ],
             'phone' => ['nullable', 'string', 'max:20'],
             'birth_date' => ['nullable', 'date'],
-            'gender' => ['nullable', Rule::in(['M', 'F'])],
+            'gender' => ['nullable', Rule::in(['M', 'F', 'O'])],
         ];
     }
 }
