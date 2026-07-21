@@ -7,7 +7,7 @@ Sistema web para gerenciamento de proprietários, veículos e revisões automoti
 ## Tecnologias
 
 ### Backend
-- PHP 8.5
+- PHP ^8.3
 - Laravel 13
 - Laravel Sanctum
 
