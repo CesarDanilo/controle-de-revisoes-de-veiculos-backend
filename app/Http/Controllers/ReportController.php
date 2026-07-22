@@ -97,7 +97,8 @@ class ReportController extends Controller
             ->select(
                 'brands.name as brand',
                 DB::raw("count(*) filter (where people.gender = 'M') as male_count"),
-                DB::raw("count(*) filter (where people.gender = 'F') as female_count")
+                DB::raw("count(*) filter (where people.gender = 'F') as female_count"),
+                DB::raw("count(*) filter (where people.gender not in ('M', 'F') or people.gender is null) as other_count")
             )
             ->groupBy('brands.name')
             ->orderByDesc(DB::raw('count(*)'))
@@ -202,6 +203,7 @@ class ReportController extends Controller
     }
 
     // iv. Média de tempo entre revisões de uma mesma pessoa
+    // ReportController.php — apenas o método avgIntervalByPerson
     #[Endpoint('Listar média de intervalo entre revisões por pessoa', 'Retorna a média de dias entre revisões de cada pessoa cadastrada do usuário autenticado.')]
     public function avgIntervalByPerson(Request $request)
     {
@@ -209,6 +211,7 @@ class ReportController extends Controller
 
         return DB::table(DB::raw("(
             select
+                people.id as person_id,
                 people.name as person_name,
                 revisions.revision_date,
                 lag(revisions.revision_date) over (
@@ -224,16 +227,22 @@ class ReportController extends Controller
                 DB::raw('round(avg(revision_date - previous_date)) as avg_days')
             )
             ->whereNotNull('previous_date')
-            ->groupBy('person_name')
+            ->groupBy('person_id', 'person_name') // agrupa por ID; nome só acompanha
             ->get();
     }
 
-    // v. Próximas revisões — usa o campo next_revision_date já calculado no cadastro
+    // v. Próximas revisões — usa next_revision_date/next_revision_km quando
+    // informados pelo usuário; quando ausentes (null), estima com base na
+    // média de intervalo (dias e km) entre as revisões anteriores do mesmo
+    // veículo. Precisa de pelo menos 2 revisões no histórico do veículo para
+    // haver um intervalo mensurável — com 0 ou 1 revisão anterior, o campo
+    // estimado permanece null (sem dado suficiente pra estimar).
+    #[Endpoint('Listar próximas revisões', 'Retorna a previsão da próxima revisão de cada veículo do usuário autenticado, usando o valor informado ou, na ausência dele, uma estimativa baseada no histórico do veículo.')]
     public function upcomingRevisions(Request $request)
     {
         $userId = $request->user()->id;
 
-        return DB::table(DB::raw("(
+        $latestRevisions = DB::raw("(
             select
                 revisions.*,
                 row_number() over (
@@ -242,18 +251,56 @@ class ReportController extends Controller
                 ) as rn
             from revisions
             where revisions.user_id = '{$userId}'
-        ) as latest_revisions"))
+        ) as latest_revisions");
+
+        $avgIntervals = DB::raw("(
+            select
+                vehicle_id,
+                round(avg(date_diff)) as avg_days,
+                round(avg(km_diff)) as avg_km
+            from (
+                select
+                    vehicle_id,
+                    revision_date - lag(revision_date) over (
+                        partition by vehicle_id order by revision_date
+                    ) as date_diff,
+                    km - lag(km) over (
+                        partition by vehicle_id order by revision_date
+                    ) as km_diff
+                from revisions
+                where user_id = '{$userId}'
+            ) as diffs
+            where date_diff is not null
+            group by vehicle_id
+        ) as avg_intervals");
+
+        return DB::table($latestRevisions)
             ->join('vehicle', 'vehicle.id', '=', 'latest_revisions.vehicle_id')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
+            ->leftJoin($avgIntervals, 'avg_intervals.vehicle_id', '=', 'latest_revisions.vehicle_id')
             ->select(
                 'people.name as person_name',
                 'vehicle.model as vehicle',
                 'latest_revisions.revision_date as last_revision',
-                'latest_revisions.next_revision_date as predicted_date',
-                'latest_revisions.next_revision_km as predicted_km'
+                'latest_revisions.next_revision_date as informed_date',
+                'latest_revisions.next_revision_km as informed_km',
+                DB::raw("
+                    coalesce(
+                        latest_revisions.next_revision_date,
+                        (latest_revisions.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
+                    ) as predicted_date
+                "),
+                DB::raw('coalesce(latest_revisions.next_revision_km, latest_revisions.km + avg_intervals.avg_km) as predicted_km'),
+                DB::raw('(latest_revisions.next_revision_date is null and avg_intervals.avg_days is not null) as is_estimated_date'),
+                DB::raw('(latest_revisions.next_revision_km is null and avg_intervals.avg_km is not null) as is_estimated_km')
             )
             ->where('latest_revisions.rn', 1)
-            ->whereNotNull('latest_revisions.next_revision_date')
+            ->whereRaw("
+                coalesce(
+                    latest_revisions.next_revision_date,
+                    (latest_revisions.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
+                ) is not null
+            ")
             ->orderBy('predicted_date')
             ->get();
     }
