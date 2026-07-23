@@ -10,6 +10,24 @@ use Knuckles\Scribe\Attributes\Group;
 #[Group('Relatórios')]
 class ReportController extends Controller
 {
+    // Tamanho de página padrão e máximo permitido
+    private const DEFAULT_PER_PAGE = 15;
+    private const MAX_PER_PAGE = 100;
+
+    /**
+     * Lê o parâmetro per_page da request, limitando ao máximo permitido.
+     */
+    private function perPage(Request $request): int
+    {
+        $perPage = (int) $request->query('per_page', self::DEFAULT_PER_PAGE);
+
+        if ($perPage < 1) {
+            $perPage = self::DEFAULT_PER_PAGE;
+        }
+
+        return min($perPage, self::MAX_PER_PAGE);
+    }
+
     // ---------- VEÍCULOS ----------
 
     // i. Todos os veículos
@@ -35,7 +53,7 @@ class ReportController extends Controller
             ->get();
     }
 
-    // ii. Todos os veículos por pessoa, ordenado por nome
+    // ii. Todos os veículos por pessoa, ordenado por nome (PAGINADO)
     #[Endpoint('Listar veículos por pessoa', 'Retorna todos os veículos cadastrados do usuário autenticado, agrupados por pessoa.')]
     public function vehiclesByPerson(Request $request)
     {
@@ -52,7 +70,7 @@ class ReportController extends Controller
                 'brands.name as brand'
             )
             ->orderBy('people.name')
-            ->get();
+            ->paginate($this->perPage($request));
     }
 
     // iii. Quem tem mais veículos: homens ou mulheres
@@ -107,7 +125,7 @@ class ReportController extends Controller
 
     // ---------- PESSOAS ----------
 
-    // i. Todas as pessoas
+    // i. Todas as pessoas (PAGINADO)
     #[Endpoint('Listar pessoas', 'Retorna todas as pessoas cadastradas do usuário autenticado.')]
     public function allPeople(Request $request)
     {
@@ -117,7 +135,7 @@ class ReportController extends Controller
             ->where('user_id', $userId)
             ->select('id', 'name', 'email', 'phone', 'gender', 'birth_date')
             ->orderBy('name')
-            ->get();
+            ->paginate($this->perPage($request));
     }
 
     // ii. Pessoas por gênero, com idade média
@@ -140,7 +158,7 @@ class ReportController extends Controller
 
     // ---------- REVISÕES ----------
 
-    // i. Revisões dentro de um período
+    // i. Revisões dentro de um período (PAGINADO)
     #[Endpoint('Listar revisões por período', 'Retorna todas as revisões cadastradas do usuário autenticado, dentro de um período específico.')]
     public function revisionsByPeriod(Request $request)
     {
@@ -167,7 +185,9 @@ class ReportController extends Controller
             $query->where('revisions.revision_date', '<=', $end);
         }
 
-        return $query->orderByDesc('revisions.revision_date')->get();
+        return $query
+            ->orderByDesc('revisions.revision_date')
+            ->paginate($this->perPage($request));
     }
 
     // ii. Marcas com maior número de revisões
@@ -183,6 +203,7 @@ class ReportController extends Controller
             ->select('brands.name as brand', DB::raw('count(*) as count'))
             ->groupBy('brands.name')
             ->orderByDesc('count')
+            ->limit(5)
             ->get();
     }
 
@@ -199,11 +220,11 @@ class ReportController extends Controller
             ->select('people.name as person_name', DB::raw('count(*) as count'))
             ->groupBy('people.name')
             ->orderByDesc('count')
+            ->limit(5)
             ->get();
     }
 
-    // iv. Média de tempo entre revisões de uma mesma pessoa
-    // ReportController.php — apenas o método avgIntervalByPerson
+    // iv. Média de tempo entre revisões de uma mesma pessoa (PAGINADO)
     #[Endpoint('Listar média de intervalo entre revisões por pessoa', 'Retorna a média de dias entre revisões de cada pessoa cadastrada do usuário autenticado.')]
     public function avgIntervalByPerson(Request $request)
     {
@@ -228,15 +249,11 @@ class ReportController extends Controller
             )
             ->whereNotNull('previous_date')
             ->groupBy('person_id', 'person_name') // agrupa por ID; nome só acompanha
-            ->get();
+            ->orderBy('person_name')
+            ->paginate($this->perPage($request));
     }
 
-    // v. Próximas revisões — usa next_revision_date/next_revision_km quando
-    // informados pelo usuário; quando ausentes (null), estima com base na
-    // média de intervalo (dias e km) entre as revisões anteriores do mesmo
-    // veículo. Precisa de pelo menos 2 revisões no histórico do veículo para
-    // haver um intervalo mensurável — com 0 ou 1 revisão anterior, o campo
-    // estimado permanece null (sem dado suficiente pra estimar).
+    // v. Próximas revisões previstas (PAGINADO)
     #[Endpoint('Listar próximas revisões', 'Retorna a previsão da próxima revisão de cada veículo do usuário autenticado, usando o valor informado ou, na ausência dele, uma estimativa baseada no histórico do veículo.')]
     public function upcomingRevisions(Request $request)
     {
@@ -302,6 +319,6 @@ class ReportController extends Controller
                 ) is not null
             ")
             ->orderBy('predicted_date')
-            ->get();
+            ->paginate($this->perPage($request));
     }
 }
