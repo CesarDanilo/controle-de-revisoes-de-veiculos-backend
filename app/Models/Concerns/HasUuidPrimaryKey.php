@@ -1,20 +1,28 @@
 <?php
 
 namespace App\Models\Concerns;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
-use Illuminate\Database\Eloquent\Concerns\HasUuids;
-
+/**
+ * @mixin Model
+ */
 trait HasUuidPrimaryKey
 {
-    use HasUuids;
+    // REMOVIDO: protected $keyType = 'string';
 
-    /**
-     * @var string
-     */
-    protected $keyType = 'string';
+    public function initializeHasUuidPrimaryKey(): void
+    {
+        $this->keyType = 'string';
+        $this->incrementing = false;
+    }
 
-    /**
-     * @var bool
-     */
-    public $incrementing = false;
+    protected static function bootHasUuidPrimaryKey(): void
+    {
+        static::creating(function ($model) {
+            if (empty($model->{$model->getKeyName()})) {
+                $model->{$model->getKeyName()} = (string) Str::uuid();
+            }
+        });
+    }
 }
