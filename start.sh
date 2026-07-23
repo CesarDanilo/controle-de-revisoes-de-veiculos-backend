@@ -2,7 +2,8 @@
 set -e
 
 echo "Aguardando o banco de dados..."
-until php artisan db:show > /dev/null 2>&1; do
+until php artisan tinker --execute="DB::connection()->getPdo();" > /dev/null 2>&1; do
+  echo "Banco ainda não disponível, aguardando..."
   sleep 2
 done
 
