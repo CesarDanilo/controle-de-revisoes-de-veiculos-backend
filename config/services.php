@@ -19,6 +19,11 @@ return [
         'email_validation_url' => env('ABSTRACT_EMAIL_API_URL', 'https://emailvalidation.abstractapi.com/v1'),
     ],
 
+    'cpfhub' => [
+    'api_key' => env('CPFHUB_API_KEY'),
+    'api_url' => env('CPFHUB_API_URL', 'https://api.cpfhub.io/cpf'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
