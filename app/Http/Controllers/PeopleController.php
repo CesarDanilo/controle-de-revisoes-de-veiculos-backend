@@ -8,6 +8,7 @@ use App\Models\People;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 use Knuckles\Scribe\Attributes\Endpoint;
 use Knuckles\Scribe\Attributes\Group;
@@ -46,6 +47,11 @@ class PeopleController extends Controller
 
         } catch (\Exception $ex) {
 
+            Log::error('Erro ao criar pessoa', [
+                'error' => $ex->getMessage(),
+                'user_id' => Auth::id(),
+            ]);
+
             return response()->json([
                 'error' => 'Falha ao criar pessoa!'
             ], 500);
@@ -79,7 +85,13 @@ class PeopleController extends Controller
             $people->update($validatedData);
             return response()->json($people, 200);
         } catch (\Exception $ex) {
-            dd($ex);
+
+            Log::error('Erro ao atualizar pessoa', [
+                'error' => $ex->getMessage(),
+                'person_id' => $id,
+                'user_id' => Auth::id(),
+            ]);
+
             return response()->json(['error' => 'Falha ao atualizar pessoa!'], 500);
         }
     }
