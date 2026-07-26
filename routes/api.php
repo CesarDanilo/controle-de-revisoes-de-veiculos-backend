@@ -13,6 +13,7 @@ use App\Http\Controllers\ReportController;
 
 use App\Http\Controllers\Auth\GoogleAuthController;
 
+use App\Http\Controllers\Api\EmailValidationController;
 
 Route::apiResource('users', UserController::class);
 
@@ -57,3 +58,5 @@ Route::middleware('auth:sanctum')->prefix('reports')->group(function () {
     Route::get('revisions/avg-interval', [ReportController::class, 'avgIntervalByPerson']);
     Route::get('revisions/upcoming', [ReportController::class, 'upcomingRevisions']);
 });
+
+Route::post('/email/validate', EmailValidationController::class);

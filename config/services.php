@@ -14,6 +14,11 @@ return [
     |
     */
 
+    'abstract' => [
+        'email_validation_key' => env('ABSTRACT_EMAIL_API_KEY'),
+        'email_validation_url' => env('ABSTRACT_EMAIL_API_URL', 'https://emailvalidation.abstractapi.com/v1'),
+    ],
+
     'postmark' => [
         'key' => env('POSTMARK_API_KEY'),
     ],
