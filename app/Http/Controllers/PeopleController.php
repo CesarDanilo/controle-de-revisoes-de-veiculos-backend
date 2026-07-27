@@ -20,13 +20,39 @@ class PeopleController extends Controller
     /**
      * Display a listing of the resource.
      */
-    #[Endpoint('Listar pessoas', 'Retorna todas as pessoas cadastradas do usuário autenticado.')]
+    #[Endpoint('Listar pessoas', 'Retorna todas as pessoas cadastradas do usuário autenticado, com suporte a paginação e filtros.')]
     public function index(Request $request)
     {
-        $current_page = $request->query('current_page') ?? 1;
-        $per_page = 10;
-        $skip = ($current_page - 1) * $per_page;
-        $people = People::where('user_id', Auth::id())->skip($skip)->take($per_page)->get();
+        $currentPage = max(1, (int) $request->query('current_page', 1));
+        $perPage = 10;
+
+        $query = People::where('user_id', Auth::id());
+
+        // Filtros opcionais - cada um só é aplicado se vier preenchido na query string
+        if ($name = $request->query('name')) {
+            $query->where('name', 'ilike', "%{$name}%");
+        }
+
+        if ($email = $request->query('email')) {
+            $query->where('email', 'ilike', "%{$email}%");
+        }
+
+        if ($phone = $request->query('phone')) {
+            // Remove qualquer coisa que não seja dígito antes de comparar,
+            // já que o telefone salvo pode ter máscara ou não.
+            $digitsOnly = preg_replace('/\D/', '', $phone);
+            $query->whereRaw("regexp_replace(phone, '[^0-9]', '', 'g') ilike ?", ["%{$digitsOnly}%"]);
+        }
+
+        if ($document = $request->query('document')) {
+            $digitsOnly = preg_replace('/\D/', '', $document);
+            $query->whereRaw("regexp_replace(document, '[^0-9]', '', 'g') ilike ?", ["%{$digitsOnly}%"]);
+        }
+
+        $people = $query
+            ->orderBy('name')
+            ->paginate($perPage, ['*'], 'current_page', $currentPage);
+
         return response()->json($people, 200);
     }
 

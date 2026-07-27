@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreColorRequest;
 use App\Http\Requests\UpdateColorRequest;
-use App\Models\Color;
+use App\Models\Colors;
 
 use Knuckles\Scribe\Attributes\Endpoint;
 use Knuckles\Scribe\Attributes\Group;
@@ -18,7 +18,7 @@ class ColorController extends Controller
     #[Endpoint('Listar cores', 'Retorna todas as cores cadastradas.')]
     public function index()
     {
-        return Color::orderBy('name')->get();
+        return Colors::orderBy('name')->get();
     }
 
     /**
@@ -29,7 +29,7 @@ class ColorController extends Controller
     {
         try {
 
-            $color = Color::create($request->validated());
+            $color = Colors::create($request->validated());
 
             return response()->json($color, 201);
 
@@ -49,7 +49,7 @@ class ColorController extends Controller
     public function show(string $id)
     {
         try {
-            $color = Color::findOrFail($id);
+            $color = Colors::findOrFail($id);
             return response()->json($color, 200);
         } catch (\Exception $ex) {
             return response()->json(['error' => 'Falha ao buscar cor!'], 404);
@@ -65,7 +65,7 @@ class ColorController extends Controller
         $validatedData = $request->validated();
 
         try {
-            $color = Color::findOrFail($id);
+            $color = Colors::findOrFail($id);
             $color->update($validatedData);
             return response()->json($color, 200);
         } catch (\Exception $ex) {
