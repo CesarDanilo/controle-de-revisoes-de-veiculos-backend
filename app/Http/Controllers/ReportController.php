@@ -265,6 +265,12 @@ class ReportController extends Controller
 
     // v. Próximas revisões previstas (PAGINADO)
     #[Endpoint('Listar próximas revisões', 'Retorna a previsão da próxima revisão de cada veículo do usuário autenticado, usando o valor informado ou, na ausência dele, uma estimativa baseada no histórico do veículo.')]
+    // Método upcomingRevisions() dentro de ReportController.php
+    // 🟢 ALTERADO — só o bloco ->select(...) mudou (2 colunas novas no final):
+    // 'vehicle.license_plate as vehicle_plate' e o avg_days do CTE de intervalos.
+    // O restante do método (CTEs $latestRevisions e $avgIntervals, joins, where,
+    // orderBy, paginate) continua idêntico ao que você já tem.
+
     public function upcomingRevisions(Request $request)
     {
         $userId = $request->user()->id;
@@ -306,12 +312,13 @@ class ReportController extends Controller
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->leftJoin($avgIntervals, 'avg_intervals.vehicle_id', '=', 'latest_revisions.vehicle_id')
             ->select(
-                // IDs necessários no front para permitir clique -> abrir modal de revisões da pessoa.
                 'people.id as person_id',
                 'vehicle.id as vehicle_id',
                 'latest_revisions.id as revision_id',
                 'people.name as person_name',
                 'vehicle.model as vehicle',
+                // 🟢 NOVO — o card precisa da placa pra montar o label "Modelo · Placa"
+                'vehicle.license_plate as vehicle_plate',
                 'latest_revisions.revision_date as last_revision',
                 'latest_revisions.next_revision_date as informed_date',
                 'latest_revisions.next_revision_km as informed_km',
@@ -323,7 +330,9 @@ class ReportController extends Controller
                 "),
                 DB::raw('coalesce(latest_revisions.next_revision_km, latest_revisions.km + avg_intervals.avg_km) as predicted_km'),
                 DB::raw('(latest_revisions.next_revision_date is null and avg_intervals.avg_days is not null) as is_estimated_date'),
-                DB::raw('(latest_revisions.next_revision_km is null and avg_intervals.avg_km is not null) as is_estimated_km')
+                DB::raw('(latest_revisions.next_revision_km is null and avg_intervals.avg_km is not null) as is_estimated_km'),
+                // 🟢 NOVO — o card usa isso pro texto "a cada ~X dias"
+                'avg_intervals.avg_days as avg_interval_days'
             )
             ->where('latest_revisions.rn', 1)
             ->whereRaw("
