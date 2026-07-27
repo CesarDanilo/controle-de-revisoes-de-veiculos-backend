@@ -297,6 +297,10 @@ class ReportController extends Controller
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->leftJoin($avgIntervals, 'avg_intervals.vehicle_id', '=', 'latest_revisions.vehicle_id')
             ->select(
+                // IDs necessários no front para permitir clique -> abrir modal de revisões da pessoa.
+                'people.id as person_id',
+                'vehicle.id as vehicle_id',
+                'latest_revisions.id as revision_id',
                 'people.name as person_name',
                 'vehicle.model as vehicle',
                 'latest_revisions.revision_date as last_revision',
