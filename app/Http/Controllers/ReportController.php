@@ -134,11 +134,10 @@ class ReportController extends Controller
 
         return DB::table('people')
             ->where('user_id', $userId)
-            ->select('id', 'name', 'email', 'phone', 'gender', 'birth_date')
+            ->select('id', 'name', 'email', 'phone', 'document', 'gender', 'birth_date')
             ->orderBy('name')
             ->paginate($this->perPage($request));
     }
-
     // ii. Pessoas por gênero, com idade média
     #[Endpoint('Listar pessoas por gênero', 'Retorna a quantidade de pessoas cadastradas do usuário autenticado, separadas por gênero, com a idade média de cada grupo.')]
     public function peopleByGender(Request $request)
@@ -160,6 +159,7 @@ class ReportController extends Controller
     // ---------- REVISÕES ----------
 
     // i. Revisões dentro de um período (PAGINADO)
+    // i. Revisões dentro de um período (PAGINADO)
     #[Endpoint('Listar revisões por período', 'Retorna todas as revisões cadastradas do usuário autenticado, dentro de um período específico.')]
     public function revisionsByPeriod(Request $request)
     {
@@ -172,6 +172,10 @@ class ReportController extends Controller
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->where('revisions.user_id', $userId)
             ->select(
+                // IDs necessários no front para abrir o modal já na revisão clicada.
+                'revisions.id as revision_id',
+                'people.id as person_id',
+                'vehicle.id as vehicle_id',
                 'revisions.revision_date as date',
                 'revisions.description',
                 'revisions.cost',
