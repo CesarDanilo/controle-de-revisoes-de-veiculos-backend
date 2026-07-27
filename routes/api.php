@@ -18,6 +18,8 @@ use App\Http\Controllers\Api\EmailValidationController;
 
 use App\Http\Controllers\Api\CpfValidationController;
 
+use App\Http\Controllers\DashboardController;
+
 Route::apiResource('users', UserController::class);
 
 Route::post('login', [AuthController::class, 'login']);
@@ -68,3 +70,7 @@ Route::middleware('auth:sanctum')->prefix('reports')->group(function () {
 
 Route::post('/email/validate', EmailValidationController::class);
 Route::post('/cpf/validate', CpfValidationController::class);
+
+Route::middleware('auth:sanctum')->prefix('dashboard')->group(function () {
+    Route::get('summary', [DashboardController::class, 'summary']);
+});
