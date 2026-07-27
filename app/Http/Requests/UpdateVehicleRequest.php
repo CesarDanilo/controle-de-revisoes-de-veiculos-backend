@@ -26,7 +26,7 @@ class UpdateVehicleRequest extends FormRequest
         return [
             'model' => 'sometimes|required|string|max:255',
             'year' => 'sometimes|required|integer|min:1900|max:' . (date('Y') + 1),
-            'color' => 'sometimes|required|string|max:255',
+            'color_id' => ['required', 'exists:colors,id'],
             'brand_id' => 'sometimes|required|exists:brands,id',
             'people_id' => 'nullable|exists:people,id',
             'license_plate' => [

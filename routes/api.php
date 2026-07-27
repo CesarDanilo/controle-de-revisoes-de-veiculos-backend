@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\BrandsController;
+use App\Http\Controllers\ColorController;
 use App\Http\Controllers\PeopleController;
 use App\Http\Controllers\RevisionsController;
 use App\Http\Controllers\UserController;
@@ -31,6 +32,10 @@ Route::middleware('auth:sanctum')->get('/me', function (Request $request) {
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('brands', BrandsController::class);
+});
+
+Route::middleware('auth:sanctum')->group(function () {
+    Route::apiResource('colors', ColorController::class)->except(['destroy']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {

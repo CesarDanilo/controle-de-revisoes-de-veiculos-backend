@@ -19,7 +19,7 @@ class Vehicle extends Model
         'user_id',
         'model',
         'year',
-        'color',
+        'color_id',
         'brand_id',
         'people_id',
         'license_plate',

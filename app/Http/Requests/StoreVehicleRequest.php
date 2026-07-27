@@ -25,7 +25,7 @@ class StoreVehicleRequest extends FormRequest
         return [
             'model' => 'required|string|max:255',
             'year' => 'required|integer|min:1900|max:' . (date('Y') + 1),
-            'color' => 'required|string|max:255',
+            'color_id' => ['required', 'exists:colors,id'],
             'brand_id' => 'required|exists:brands,id',
             'people_id' => 'nullable|exists:people,id',
             'license_plate' => 'required|string|max:10|unique:vehicle,license_plate',
