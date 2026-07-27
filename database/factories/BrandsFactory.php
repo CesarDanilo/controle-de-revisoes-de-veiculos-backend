@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Brands;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -16,7 +15,6 @@ class BrandsFactory extends Factory
      *
      * @return array<string, mixed>
      */
-// BrandsFactory.php
     public function definition(): array
     {
         return [

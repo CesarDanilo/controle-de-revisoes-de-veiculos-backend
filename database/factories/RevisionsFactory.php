@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Revisions;
-use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -17,10 +16,10 @@ class RevisionsFactory extends Factory
      *
      * @return array<string, mixed>
      */
-    // RevisionsFactory.php
     public function definition(): array
     {
         $revisionDate = fake()->dateTimeBetween('-2 years', 'now');
+        $km = fake()->numberBetween(5000, 150000);
 
         return [
             'vehicle_id' => Vehicle::factory(),
@@ -33,11 +32,12 @@ class RevisionsFactory extends Factory
 
             'revision_date' => $revisionDate->format('Y-m-d'),
             'cost' => fake()->randomFloat(2, 0, 2500),
-            'km' => fake()->numberBetween(5000, 150000),
+            'km' => $km,
 
             // ~50% nulos de propósito, pra exercitar a lógica de ESTIMATIVA
             // do upcomingRevisions() (que só estima quando esses campos são null)
-            'next_revision_km' => fake()->optional(0.5)->numberBetween(150000, 170000),
+            // 🔴 AQUI — next_revision_km agora é sempre maior que o km atual
+            'next_revision_km' => fake()->optional(0.5)->numberBetween($km + 5000, $km + 20000),
             'next_revision_date' => fake()->optional(0.5)->dateTimeBetween('+3 months', '+12 months')?->format('Y-m-d'),
         ];
     }

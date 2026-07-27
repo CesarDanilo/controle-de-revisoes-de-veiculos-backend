@@ -3,8 +3,8 @@
 namespace Database\Factories;
 
 use App\Models\Brands;
+use App\Models\Colors;
 use App\Models\People;
-use App\Models\User;
 use App\Models\Vehicle;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -18,13 +18,13 @@ class VehicleFactory extends Factory
      *
      * @return array<string, mixed>
      */
-    // VehicleFactory.php
     public function definition(): array
     {
         return [
-            // Sem recycle() no seeder, isso cria brand/people novos (sem user_id).
+            // Sem recycle() no seeder, isso cria brand/color/people novos (sem user_id).
             // Com recycle(), o Laravel reaproveita os já criados pro mesmo usuário.
             'brand_id' => Brands::factory(),
+            'color_id' => Colors::factory(), // 🔴 AQUI — era 'color' => fake()->safeColorName(), corrigido pra FK
             'people_id' => People::factory(),
 
             'model' => fake()->randomElement([
@@ -33,7 +33,6 @@ class VehicleFactory extends Factory
             ]),
 
             'year' => fake()->numberBetween(2014, 2026),
-            'color' => fake()->safeColorName(),
             'license_plate' => strtoupper(fake()->bothify('???#?##')),
         ];
     }
