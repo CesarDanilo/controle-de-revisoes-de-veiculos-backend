@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Knuckles\Scribe\Attributes\Endpoint;
 use Knuckles\Scribe\Attributes\Group;
+use Illuminate\Support\Facades\Cache;
 
 #[Group('Relatórios')]
 class ReportController extends Controller
@@ -65,6 +66,8 @@ class ReportController extends Controller
             ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
             ->where('vehicle.user_id', $userId)
             ->select(
+                'people.id as person_id',
+                'vehicle.id as vehicle_id',
                 'people.name as person_name',
                 'vehicle.license_plate as plate',
                 'vehicle.model',
@@ -88,19 +91,20 @@ class ReportController extends Controller
             ->get();
     }
 
-    // iv. Todas as marcas ordenadas pelo número de veículos
-    #[Endpoint('Listar ranking de marcas', 'Retorna todas as marcas cadastradas do usuário autenticado, ordenadas pelo número de veículos.')]
     public function brandsRanking(Request $request)
     {
         $userId = $request->user()->id;
 
-        return DB::table('vehicle')
-            ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
-            ->where('vehicle.user_id', $userId)
-            ->select('brands.name as brand', DB::raw('count(*) as count'))
-            ->groupBy('brands.name')
-            ->orderByDesc('count')
-            ->get();
+        return Cache::remember("reports:brands-ranking:{$userId}", 300, function () use ($userId) {
+            return DB::table('vehicle')
+                ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
+                ->where('vehicle.user_id', $userId)
+                ->select('brands.name as brand', DB::raw('count(*) as count'))
+                ->groupBy('brands.name')
+                ->orderByDesc('count')
+                ->get()
+                ->toArray(); // 🔴 força array simples em vez de Collection
+        });
     }
 
     // v. Totais de marcas do maior para o menor, separados por gênero
@@ -138,6 +142,7 @@ class ReportController extends Controller
             ->orderBy('name')
             ->paginate($this->perPage($request));
     }
+    
     // ii. Pessoas por gênero, com idade média
     #[Endpoint('Listar pessoas por gênero', 'Retorna a quantidade de pessoas cadastradas do usuário autenticado, separadas por gênero, com a idade média de cada grupo.')]
     public function peopleByGender(Request $request)
