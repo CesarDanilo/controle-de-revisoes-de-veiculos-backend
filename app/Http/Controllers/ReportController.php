@@ -39,13 +39,14 @@ class ReportController extends Controller
         return DB::table('vehicle')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
+            ->join('colors', 'colors.id', '=', 'vehicle.color_id')
             ->where('vehicle.user_id', $userId)
             ->select(
                 'vehicle.id',
                 'vehicle.license_plate',
                 'vehicle.model',
                 'vehicle.year',
-                'vehicle.color',
+                'colors.name as color',
                 'brands.name as brand',
                 'people.name as person_name'
             )
