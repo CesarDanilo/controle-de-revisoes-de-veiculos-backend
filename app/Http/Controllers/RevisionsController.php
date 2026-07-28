@@ -95,14 +95,13 @@ class RevisionsController extends Controller
      * Remove the specified resource from storage.
      */
     #[Endpoint('Deletar revisão', 'Deleta uma revisão específica.')]
-    public function destroy(string $id)
+    public function destroy($id)
     {
-        try {
-            $revision = Revisions::where('user_id', Auth::id())->findOrFail($id);
-            $revision->delete();
-            return response()->json(['message' => 'Revisão deletada com sucesso!'], 200);
-        } catch (\Exception $ex) {
-            return response()->json(['error' => 'Falha ao deletar revisão!'], 500);
-        }
+        $revisao = Revisions::where('user_id', Auth::id())->findOrFail($id);
+        $revisao->moverParaLixeira();
+
+        return response()->json([
+            'mensagem' => 'Revisão movida para a lixeira. Pode ser recuperada em até 7 dias.'
+        ]);
     }
 }

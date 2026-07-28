@@ -125,13 +125,13 @@ class PeopleController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    #[Endpoint('Deletar pessoa', 'Deleta uma pessoa específica do usuário autenticado.')]
+    #[Endpoint('Deletar pessoa', 'Move uma pessoa para a lixeira (pode ser restaurada em até 7 dias).')]
     public function destroy(string $id)
     {
         try {
             $people = People::where('user_id', Auth::id())->findOrFail($id);
-            $people->delete();
-            return response()->json(['message' => 'Pessoa deletada com sucesso!'], 200);
+            $people->moverParaLixeira();
+            return response()->json(['message' => 'Pessoa movida para a lixeira. Pode ser recuperada em até 7 dias.'], 200);
         } catch (\Exception $ex) {
             return response()->json(['error' => 'Falha ao deletar pessoa!'], 500);
         }

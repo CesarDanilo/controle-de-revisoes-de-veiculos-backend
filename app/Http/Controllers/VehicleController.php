@@ -80,13 +80,13 @@ class VehicleController extends Controller
     /**
      * Remove the specified resource from storage.
      */
-    #[Endpoint('Deletar veículo', 'Deleta um veículo específico.')]
+    #[Endpoint('Deletar veículo', 'Move um veículo para a lixeira (pode ser restaurado em até 7 dias).')]
     public function destroy(string $id)
     {
         try {
             $vehicle = Vehicle::where('user_id', Auth::id())->findOrFail($id);
-            $vehicle->delete();
-            return response()->json(['message' => 'Veículo deletado com sucesso!'], 200);
+            $vehicle->moverParaLixeira();
+            return response()->json(['message' => 'Veículo movido para a lixeira. Pode ser recuperado em até 7 dias.'], 200);
         } catch (\Exception $ex) {
             return response()->json(['error' => 'Falha ao deletar veículo!'], 500);
         }

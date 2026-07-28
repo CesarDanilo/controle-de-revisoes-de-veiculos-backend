@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\EmailValidationController;
 use App\Http\Controllers\Api\CpfValidationController;
 
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\LixeiraController;
 
 Route::apiResource('users', UserController::class);
 
@@ -73,4 +74,13 @@ Route::post('/cpf/validate', CpfValidationController::class);
 
 Route::middleware('auth:sanctum')->prefix('dashboard')->group(function () {
     Route::get('summary', [DashboardController::class, 'summary']);
+});
+
+// routes/api.php
+Route::middleware('auth:sanctum')->group(function () {
+    // ... suas outras rotas protegidas (revisions, people, vehicle, etc.)
+
+    Route::get('/lixeira', [LixeiraController::class, 'index']);
+    Route::post('/lixeira/{id}/restaurar', [LixeiraController::class, 'restaurar']);
+    Route::delete('/lixeira/{id}', [LixeiraController::class, 'destruirPermanente']);
 });
