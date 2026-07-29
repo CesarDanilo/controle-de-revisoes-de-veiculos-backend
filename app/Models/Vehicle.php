@@ -14,7 +14,7 @@ class Vehicle extends Model
     use HasUuidPrimaryKey;
     use HasFactory;
     use PodeSerMovidoParaLixeira;
-    
+
     protected $table = 'vehicle';
 
     protected $fillable = [
@@ -26,5 +26,12 @@ class Vehicle extends Model
         'people_id',
         'license_plate',
     ];
-}
 
+    // 🟢 NOVO — usado pelo Revisions::with('vehicle.people') no
+    // RevisionsController@index, pra trazer o dono do veículo junto
+    // de cada revisão sem N+1 query.
+    public function people()
+    {
+        return $this->belongsTo(People::class, 'people_id');
+    }
+}

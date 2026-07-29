@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreRevisionsRequest;
 use App\Http\Requests\UpdateRevisionsRequest;
+use App\Http\Requests\UpdateRevisionStatusRequest;
 use App\Models\Revisions;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,10 +18,17 @@ class RevisionsController extends Controller
     /**
      * Display a listing of the resource.
      */
+/**
+     * Display a listing of the resource.
+     */
     #[Endpoint('Listar revisões', 'Retorna todas as revisões cadastradas do usuário autenticado.')]
     public function index(Request $request)
     {
-        $query = Revisions::where('user_id', Auth::id());
+        // 🟢 AQUI — eager load do veículo + dono, resolvendo o TODO do Kanban
+        // ("trocar por modelo/placa do veículo e nome do proprietário").
+        // Sem isso, cada card não tinha como saber o person_id pra abrir o
+        // RevisionsModal.
+        $query = Revisions::where('user_id', Auth::id())->with('vehicle.people');
 
         // Filter by vehicle when the frontend asks for a specific vehicle's
         // revisions (RevisionsModal.vue calls this once per vehicle).
@@ -34,7 +42,20 @@ class RevisionsController extends Controller
             ->orderByDesc('revision_date')
             ->paginate($per_page);
 
-        return response()->json($revisions->items(), 200);
+        // 🟢 AQUI — achata vehicle.people em campos soltos (person_id,
+        // person_name, vehicle_model, vehicle_license_plate) pra não expor a
+        // estrutura aninhada pro frontend, que só precisa desses valores.
+        $items = collect($revisions->items())->map(function ($revision) {
+            $data = $revision->toArray();
+            $data['person_id'] = $revision->vehicle?->people?->id;
+            $data['person_name'] = $revision->vehicle?->people?->name;
+            $data['vehicle_model'] = $revision->vehicle?->model;
+            $data['vehicle_license_plate'] = $revision->vehicle?->license_plate;
+            unset($data['vehicle']);
+            return $data;
+        });
+
+        return response()->json($items, 200);
     }
 
     /**
@@ -88,6 +109,32 @@ class RevisionsController extends Controller
             return response()->json($revision, 200);
         } catch (\Exception $ex) {
             return response()->json(['error' => 'Falha ao atualizar revisão!'], 500);
+        }
+    }
+
+    /**
+     * Update the status and/or payment status of the revision.
+     * Used by the Kanban drag-and-drop (status only) and by the manual
+     * edit form in RevisionsModal (status and/or status_pagamento).
+     */
+    #[Endpoint('Atualizar status da revisão', 'Move a revisão para outra coluna do Kanban e/ou atualiza o status de pagamento.')]
+    public function updateStatus(UpdateRevisionStatusRequest $request, string $id)
+    {
+        try {
+            $revision = Revisions::where('user_id', Auth::id())->findOrFail($id);
+
+            if ($request->filled('status')) {
+                $revision->status = $request->validated('status');
+            }
+            if ($request->filled('status_pagamento')) {
+                $revision->status_pagamento = $request->validated('status_pagamento');
+            }
+
+            $revision->save();
+
+            return response()->json($revision, 200);
+        } catch (\Exception $ex) {
+            return response()->json(['error' => 'Falha ao atualizar status da revisão!'], 500);
         }
     }
 

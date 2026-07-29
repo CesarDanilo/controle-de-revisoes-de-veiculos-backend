@@ -1,0 +1,17 @@
+[90m= [39m[34;4mApp\Models\Revisions[39;24m {#8755
+    [34mid[39m: [32m"[39m[32m540b942a-4c87-471d-9e75-662838a92cc1[39m[32m"[39m,
+    [34muser_id[39m: [32m"[39m[32m85fecc8a-fff6-43f5-8168-2748ebfe7bb7[39m[32m"[39m,
+    [34mvehicle_id[39m: [32m"[39m[32mca7281df-4e32-486d-9bba-345cb60c0679[39m[32m"[39m,
+    [34mdescription[39m: [32m"[39m[32mTroca de pneus[39m[32m"[39m,
+    [34mrevision_date[39m: [32m"[39m[32m2025-11-14[39m[32m"[39m,
+    [34mcost[39m: [32m"[39m[32m277.29[39m[32m"[39m,
+    [34mcreated_at[39m: [32m"[39m[32m2026-07-27 07:05:11[39m[32m"[39m,
+    [34mupdated_at[39m: [32m"[39m[32m2026-07-27 07:05:11[39m[32m"[39m,
+    [34mnext_revision_date[39m: [36mnull[39m,
+    [34mnext_revision_km[39m: [35m71331[39m,
+    [34mkm[39m: [35m52180[39m,
+    [34mreminder_notified_at[39m: [36mnull[39m,
+    [34mdue_notified_at[39m: [36mnull[39m,
+    [34mstatus[39m: [32m"[39m[32maberto[39m[32m"[39m,
+    [34mstatus_pagamento[39m: [32m"[39m[32mpendente[39m[32m"[39m,
+  }

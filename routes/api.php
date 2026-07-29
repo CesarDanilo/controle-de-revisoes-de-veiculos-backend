@@ -46,6 +46,9 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 Route::middleware('auth:sanctum')->group(function () {
+    // precisa vir ANTES do apiResource: senão o Laravel tenta casar
+    // "revisions/{id}/status" com a rota show/update do resource e dá 404.
+    Route::patch('revisions/{id}/status', [RevisionsController::class, 'updateStatus']);
     Route::apiResource('revisions', RevisionsController::class);
 });
 
