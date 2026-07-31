@@ -66,10 +66,19 @@ class RevisionsController extends Controller
     {
         try {
 
-            $revision = Revisions::create([
-                ...$request->validated(),
+            $revision = new Revisions([
+                ...$request->safe()->except(['status', 'status_pagamento']),
                 'user_id' => Auth::id(),
             ]);
+
+            if ($request->filled('status')) {
+                $revision->status = $request->validated('status');
+            }
+            if ($request->filled('status_pagamento')) {
+                $revision->status_pagamento = $request->validated('status_pagamento');
+            }
+
+            $revision->save();
 
             return response()->json($revision, 201);
 

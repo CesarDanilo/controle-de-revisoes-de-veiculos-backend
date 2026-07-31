@@ -2,8 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\StatusPagamento;
+use App\Enums\StatusRevisao;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rules\Enum;
 
 class StoreRevisionsRequest extends FormRequest
 {
@@ -30,6 +33,12 @@ class StoreRevisionsRequest extends FormRequest
             'next_revision_date' => 'nullable|date|after:revision_date',
             'next_revision_km' => 'nullable|integer|min:0',
             'km' => 'nullable|integer|min:0',
+            // 🔴 AQUI — status/status_pagamento agora também podem vir na
+            // criação (o formulário do frontend já manda os defaults
+            // 'aberto'/'pendente' ou o que o usuário escolher). 'sometimes'
+            // porque, se não vierem, o Controller usa o default da coluna.
+            'status' => ['sometimes', new Enum(StatusRevisao::class)],
+            'status_pagamento' => ['sometimes', new Enum(StatusPagamento::class)],
         ];
     }
 }
