@@ -4,6 +4,8 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class UpdateRevisionsRequest extends FormRequest
 {
@@ -23,7 +25,11 @@ class UpdateRevisionsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'vehicle_id' => 'required|exists:vehicle,id',
+            // 🔧 CORRIGIDO — mesmo escopo por usuário do Store.
+            'vehicle_id' => [
+                'required',
+                Rule::exists('vehicle', 'id')->where(fn ($q) => $q->where('user_id', Auth::id())),
+            ],
             'description' => 'nullable|string|max:255',
             'revision_date' => 'required|date',
             'cost' => 'nullable|numeric|min:0',

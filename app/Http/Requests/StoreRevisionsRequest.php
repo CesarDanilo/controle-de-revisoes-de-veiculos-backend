@@ -6,6 +6,8 @@ use App\Enums\StatusPagamento;
 use App\Enums\StatusRevisao;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 
 class StoreRevisionsRequest extends FormRequest
@@ -26,7 +28,14 @@ class StoreRevisionsRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'vehicle_id' => 'required|exists:vehicle,id',
+            // 🔧 CORRIGIDO — antes 'exists:vehicle,id' sem escopo por
+            // usuário: qualquer usuário autenticado podia enviar o
+            // vehicle_id de outra conta e a validação aceitava, criando
+            // uma revisão presa a um veículo que não é dele.
+            'vehicle_id' => [
+                'required',
+                Rule::exists('vehicle', 'id')->where(fn ($q) => $q->where('user_id', Auth::id())),
+            ],
             'description' => 'nullable|string|max:255',
             'revision_date' => 'required|date',
             'cost' => 'nullable|numeric|min:0',

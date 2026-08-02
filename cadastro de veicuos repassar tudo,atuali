@@ -1,15 +1,8 @@
-cadastro de veicuos repassar tudo,atualiza ok
 
-pessoas validar email com api ok
-pessoas validar CPF com api ok
-pessoas verificar feedback da data de nacimento ok
-pessoas validar se CPF/CNPJ  ok
+usar setas no select vericulos ok
+verificar tab ok
+hover clicado ok
+adicionar fila
+verificar grafico, por que mostra mais um genero "Outro" 
 
-revisões auto focus na descrição ok
-revisões limite nas datas ok
-
-revisões relatorio adicionar o ano na data ok
-
-redirec de pessoas reviões carros ok
-
-login google  ok
+quando não tem veiculo cadastrado preciso que ele abra o modal diretamente com a aba de cadastro aberta ok

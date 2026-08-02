@@ -24,20 +24,28 @@ class UpdateVehicleRequest extends FormRequest
      */
     public function rules(): array
     {
-        // 🔴 CORRIGIDO — id do veículo sendo editado, pego da própria rota
-        // (o controller recebe `string $id` no update, então o parâmetro
-        // da rota provavelmente se chama 'id'; se sua rota usar outro nome
-        // de parâmetro, ajuste aqui).
+        // id do veículo sendo editado, pego da própria rota (o controller
+        // recebe `string $id` no update).
         $vehicleId = $this->route('id');
 
         return [
             'model' => 'sometimes|required|string|max:255',
             'year' => 'sometimes|required|integer|min:1900|max:' . (date('Y') + 1),
-            // 🔴 CORRIGIDO — estava sempre 'required', quebrando updates parciais
-            // que não alteram a cor (seu front só envia os campos que mudaram).
             'color_id' => 'sometimes|required|exists:colors,id',
-            'brand_id' => 'sometimes|required|exists:brands,id',
-            'people_id' => 'nullable|exists:people,id',
+            // 🔧 CORRIGIDO — agora escopado por usuário, mesmo motivo do Store.
+            'brand_id' => [
+                'sometimes',
+                'required',
+                Rule::exists('brands', 'id')->where(fn ($q) => $q->where('user_id', Auth::id())),
+            ],
+            // 🔧 CORRIGIDO — antes 'nullable' (a coluna é NOT NULL no banco).
+            // Vira 'sometimes' porque em update parcial pode não vir no
+            // payload — mas se vier, tem que ser válido e do próprio usuário.
+            'people_id' => [
+                'sometimes',
+                'required',
+                Rule::exists('people', 'id')->where(fn ($q) => $q->where('user_id', Auth::id())),
+            ],
             'license_plate' => [
                 'sometimes',
                 'required',

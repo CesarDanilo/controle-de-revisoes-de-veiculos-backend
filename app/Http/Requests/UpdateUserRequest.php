@@ -22,7 +22,13 @@ class UpdateUserRequest extends FormRequest
      */
     public function rules(): array
     {
-        $userId = $this->route()->parameter('user');
+        // 🔧 CORRIGIDO — mesmo bug do UpdatePeopleRequest: o controller
+        // recebe `string $id` (UserController::update), então o parâmetro
+        // da rota é 'id', não 'user'. Estava sempre null, então o unique
+        // de email comparava o registro contra ele mesmo e rejeitava
+        // updates que mantinham o mesmo e-mail.
+        $userId = $this->route('id');
+
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email,' . $userId],

@@ -10,20 +10,40 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 class ColorsFactory extends Factory
 {
     /**
+     * Mesma lógica de pool do BrandsFactory — veja os comentários lá.
+     */
+    private static ?array $pool = null;
+
+    public static function resetPool(): void
+    {
+        self::$pool = null;
+    }
+
+    /**
      * Define the model's default state.
      *
      * @return array<string, mixed>
      */
     public function definition(): array
     {
-        return [
-            // Atenção: unique() aqui só funciona porque a lista tem
-            // exatamente 12 itens — se o seeder pedir mais de 12 cores, estoura.
-            'name' => fake()->unique()->randomElement([
+        if (self::$pool === null) {
+            self::$pool = collect([
                 'Branco', 'Preto', 'Prata', 'Cinza', 'Vermelho',
                 'Azul', 'Verde', 'Amarelo', 'Marrom', 'Bege',
                 'Laranja', 'Dourado',
-            ]),
+            ])->shuffle()->values()->all();
+        }
+
+        if (empty(self::$pool)) {
+            // 🔴 AQUI — falha alto e claro em vez de gravar name vazio/null.
+            throw new \RuntimeException(
+                'ColorsFactory: lista de cores esgotada (só 12 nomes disponíveis). '
+                . 'Adicione mais nomes na lista ou reduza a quantidade solicitada.'
+            );
+        }
+
+        return [
+            'name' => array_shift(self::$pool),
         ];
     }
 }

@@ -24,7 +24,20 @@ class BrandsController extends Controller
         $current_page = $request->query('current_page') ?? 1;
         $per_page = 10;
         $skip = ($current_page - 1) * $per_page;
-        $brands = Brands::skip($skip)->take($per_page)->get();
+
+        // 🔧 CORRIGIDO — antes listava marcas de TODOS os usuários (sem
+        // where user_id). O frontend mostrava opções no dropdown que não
+        // pertenciam ao usuário logado; ao selecionar uma dessas marcas e
+        // enviar o formulário de veículo, a validação escopada por usuário
+        // (StoreVehicleRequest/UpdateVehicleRequest) rejeitava com "The
+        // selected brand id is invalid.", porque a marca de fato não
+        // pertence a esse usuário. Agora index() só retorna as marcas do
+        // próprio usuário autenticado, igual show/update/destroy já fazem.
+        $brands = Brands::where('user_id', Auth::id())
+            ->skip($skip)
+            ->take($per_page)
+            ->get();
+
         return response()->json($brands, 200);
     }
 
@@ -63,7 +76,7 @@ class BrandsController extends Controller
             return response()->json($brands, 200);
         } catch (\Exception $ex) {
             return response()->json(['error' => 'Falha ao buscar marca!'], 404);
-        } 
+        }
     }
 
     /**
@@ -78,7 +91,9 @@ class BrandsController extends Controller
             $brands->update($validatedData);
             return response()->json($brands, 200);
         } catch (\Exception $ex) {
-            dd($ex);
+            // 🔧 CORRIGIDO — dd($ex) interrompia a resposta em ambiente de
+            // produção/teste com var_dump bruto no meio do fluxo HTTP,
+            // impedindo o response()->json() de ser retornado. Removido.
             return response()->json(['error' => 'Falha ao atualizar marca!'], 500);
         }
     }

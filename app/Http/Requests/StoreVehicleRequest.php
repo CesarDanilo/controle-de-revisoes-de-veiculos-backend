@@ -27,9 +27,25 @@ class StoreVehicleRequest extends FormRequest
         return [
             'model' => 'required|string|max:255',
             'year' => 'required|integer|min:1900|max:' . (date('Y') + 1),
+            // color_id é de tabela global (colors não tem user_id), então
+            // não faz sentido escopar por usuário aqui.
             'color_id' => ['required', 'exists:colors,id'],
-            'brand_id' => 'required|exists:brands,id',
-            'people_id' => 'nullable|exists:people,id',
+            // 🔧 CORRIGIDO — antes só 'exists:brands,id', sem checar o dono.
+            // Um usuário podia enviar o brand_id de outro usuário e a
+            // validação aceitava normalmente (sem isolamento entre contas).
+            'brand_id' => [
+                'required',
+                Rule::exists('brands', 'id')->where(fn ($q) => $q->where('user_id', Auth::id())),
+            ],
+            // 🔧 CORRIGIDO — estava 'nullable', mas a coluna people_id no
+            // banco é NOT NULL (migration create_vehicle_table não tem
+            // ->nullable()). Antes, se o front esquecesse de mandar, o
+            // erro só aparecia como 500 genérico do banco. Também agora
+            // escopado por usuário, pelo mesmo motivo do brand_id acima.
+            'people_id' => [
+                'required',
+                Rule::exists('people', 'id')->where(fn ($q) => $q->where('user_id', Auth::id())),
+            ],
             'license_plate' => [
                 'required',
                 'string',
