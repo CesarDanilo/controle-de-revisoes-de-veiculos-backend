@@ -70,6 +70,7 @@ Route::middleware('auth:sanctum')->prefix('reports')->group(function () {
     Route::get('revisions/people-ranking', [ReportController::class, 'peopleRevisionRanking']);
     Route::get('revisions/avg-interval', [ReportController::class, 'avgIntervalByPerson']);
     Route::get('revisions/upcoming', [ReportController::class, 'upcomingRevisions']);
+    Route::get('revisions/summary', [ReportController::class, 'revisionsPeriodSummary']);
 });
 
 Route::post('/email/validate', EmailValidationController::class);

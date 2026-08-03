@@ -199,6 +199,51 @@ class ReportController extends Controller
             ->paginate($this->perPage($request));
     }
 
+    // i-b. Resumo agregado das revisões no período (SEM paginação — só números)
+    // 🟢 NOVO — os KPI cards da tela de Relatórios (Revisões, Veículos
+    // atendidos, Clientes atendidos, Custo total, Ticket médio) não podem
+    // depender de contar/somar o array de revisionsByPeriod no frontend,
+    // porque esse array é só a PÁGINA ATUAL (15 itens por padrão). Com
+    // centenas/milhares de revisões no período, isso fazia os cards
+    // mostrarem sempre no máximo 15, mesmo aplicando o filtro de data
+    // corretamente. Este endpoint calcula os totais direto no banco via
+    // COUNT/SUM/COUNT DISTINCT, respeitando o mesmo filtro de data usado
+    // em revisionsByPeriod, e devolve só os números agregados — nenhum
+    // registro individual trafega pro frontend.
+    #[Endpoint('Resumo de revisões no período', 'Retorna contagens e somas agregadas (total de revisões, veículos atendidos, clientes atendidos, custo total) para o período informado, calculadas direto no banco via COUNT/SUM/COUNT DISTINCT — não retorna os registros individuais.')]
+    public function revisionsPeriodSummary(Request $request)
+    {
+        $userId = $request->user()->id;
+        $start = $request->query('start');
+        $end = $request->query('end');
+
+        $query = DB::table('revisions')
+            ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
+            ->join('people', 'people.id', '=', 'vehicle.people_id')
+            ->where('revisions.user_id', $userId);
+
+        if ($start) {
+            $query->where('revisions.revision_date', '>=', $start);
+        }
+        if ($end) {
+            $query->where('revisions.revision_date', '<=', $end);
+        }
+
+        $result = $query->selectRaw('
+            count(*) as total_revisions,
+            count(distinct vehicle.id) as vehicles_count,
+            count(distinct people.id) as people_count,
+            coalesce(sum(revisions.cost), 0) as total_cost
+        ')->first();
+
+        return response()->json([
+            'total_revisions' => (int) $result->total_revisions,
+            'vehicles_count' => (int) $result->vehicles_count,
+            'people_count' => (int) $result->people_count,
+            'total_cost' => (float) $result->total_cost,
+        ]);
+    }
+
     // ii. Marcas com maior número de revisões
     #[Endpoint('Listar ranking de marcas por revisões', 'Retorna todas as marcas cadastradas do usuário autenticado, ordenadas pelo número de revisões.')]
     public function brandsRevisionRanking(Request $request)
@@ -273,30 +318,6 @@ class ReportController extends Controller
             $type = 'upcoming';
         }
 
-        // 🔧 CORRIGIDO — CAUSA RAIZ DO BUG: a CTE antiga (latest_revisions)
-        // pegava, via row_number()/rn=1, SÓ UMA revisão por veículo — a de
-        // revision_date mais alta, seja ela passada ou futura. Isso fazia
-        // uma revisão agendada mais distante (ex: 31/08) "esconder"
-        // completamente outra revisão agendada mais próxima do mesmo
-        // veículo (ex: 08/08), porque só a mais distante ganhava o rn=1.
-        // Um veículo pode ter VÁRIAS revisões agendadas ao mesmo tempo, e
-        // todas precisam aparecer — não só uma por veículo.
-        //
-        // A correção separa duas lógicas diferentes que estavam
-        // erroneamente fundidas numa única CTE:
-        //
-        //  BLOCO A — pastLatestRevisions: contém só revisões JÁ REALIZADAS
-        //  (revision_date <= hoje). Aqui SIM faz sentido "1 por veículo"
-        //  (rn = 1), pois é usado só para CALCULAR uma previsão (informada
-        //  via next_revision_date, ou estimada pela média histórica).
-        //
-        //  BLOCO B — scheduledRevisions: contém TODAS as revisões com
-        //  revision_date no FUTURO, sem nenhum filtro de "só uma por
-        //  veículo" — cada revisão agendada vira sua própria entrada na
-        //  lista, então um veículo com 2, 3, N revisões agendadas mostra
-        //  todas elas.
-        //
-        // Os dois blocos são unidos (UNION ALL) e paginados juntos.
         $pastLatestRevisionsCte = "(
             select
                 revisions.*,
@@ -330,8 +351,6 @@ class ReportController extends Controller
             group by vehicle_id
         ) as avg_intervals";
 
-        // BLOCO A — previsão calculada (informada/estimada), 1 por veículo,
-        // baseada apenas na última revisão JÁ REALIZADA.
         $informedOrEstimatedSql = "
             select
                 people.id as person_id,
@@ -363,8 +382,6 @@ class ReportController extends Controller
                   ) is not null
         ";
 
-        // BLOCO B — TODAS as revisões agendadas no futuro, sem limitar a
-        // uma por veículo. predicted_date é a própria data da revisão.
         $scheduledSql = "
             select
                 people.id as person_id,
@@ -389,24 +406,15 @@ class ReportController extends Controller
               and revisions.revision_date > current_date
         ";
 
-        // 🟢 NOVO — como "predicted_date" agora é uma coluna real da tabela
-        // derivada "upcoming_predictions" (resultado do UNION ALL), não um
-        // simples alias dentro do mesmo nível de SELECT, o Postgres permite
-        // referenciá-la normalmente em WHERE/ORDER BY — sem o problema que
-        // tivemos antes com orderByRaw('abs(predicted_date - ...)').
         $unionSql = "({$informedOrEstimatedSql}) union all ({$scheduledSql})";
 
         $query = DB::table(DB::raw("({$unionSql}) as upcoming_predictions"));
 
         if ($type === 'overdue') {
-            // atrasadas: predicted_date < hoje. Mais urgente (mais recente) primeiro.
-            // Revisões agendadas (bloco B) nunca caem aqui — sua predicted_date
-            // é sempre > current_date por definição (revision_date > current_date).
             $query
                 ->where('predicted_date', '<', DB::raw('current_date'))
                 ->orderByDesc('predicted_date');
         } else {
-            // próximas: predicted_date >= hoje. Mais próxima primeiro.
             $query
                 ->where('predicted_date', '>=', DB::raw('current_date'))
                 ->orderBy('predicted_date');
