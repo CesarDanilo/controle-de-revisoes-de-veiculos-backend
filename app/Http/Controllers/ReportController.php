@@ -257,7 +257,6 @@ class ReportController extends Controller
             ->select('brands.name as brand', DB::raw('count(*) as count'))
             ->groupBy('brands.name')
             ->orderByDesc('count')
-            ->limit(5)
             ->get();
     }
 
@@ -274,7 +273,6 @@ class ReportController extends Controller
             ->select('people.name as person_name', DB::raw('count(*) as count'))
             ->groupBy('people.name')
             ->orderByDesc('count')
-            ->limit(5)
             ->get();
     }
 
