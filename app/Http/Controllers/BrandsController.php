@@ -7,10 +7,9 @@ use App\Http\Requests\UpdateBrandsRequest;
 use App\Models\Brands;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-
+use Illuminate\Support\Facades\Log;
 use Knuckles\Scribe\Attributes\Endpoint;
 use Knuckles\Scribe\Attributes\Group;
-
 
 #[Group('Marcas')]
 class BrandsController extends Controller
@@ -21,18 +20,10 @@ class BrandsController extends Controller
     #[Endpoint('Listar marcas', 'Retorna todas as marcas cadastradas.')]
     public function index(Request $request)
     {
-        $current_page = $request->query('current_page') ?? 1;
+        $current_page = (int) $request->query('current_page', 1);
         $per_page = 10;
         $skip = ($current_page - 1) * $per_page;
 
-        // 🔧 CORRIGIDO — antes listava marcas de TODOS os usuários (sem
-        // where user_id). O frontend mostrava opções no dropdown que não
-        // pertenciam ao usuário logado; ao selecionar uma dessas marcas e
-        // enviar o formulário de veículo, a validação escopada por usuário
-        // (StoreVehicleRequest/UpdateVehicleRequest) rejeitava com "The
-        // selected brand id is invalid.", porque a marca de fato não
-        // pertence a esse usuário. Agora index() só retorna as marcas do
-        // próprio usuário autenticado, igual show/update/destroy já fazem.
         $brands = Brands::where('user_id', Auth::id())
             ->skip($skip)
             ->take($per_page)
@@ -48,20 +39,24 @@ class BrandsController extends Controller
     public function store(StoreBrandsRequest $request)
     {
         try {
-
             $brand = Brands::create([
-                ...$request->validated(),
+                'name' => $request->validated('name'),
                 'user_id' => Auth::id(),
             ]);
 
             return response()->json($brand, 201);
 
-        } catch (\Exception $ex) {
+        } catch (\Throwable $ex) {
+            // ✅ Grava o erro detalhado nos logs do Laravel (storage/logs/laravel.log)
+            Log::error('Erro ao criar marca: ' . $ex->getMessage(), [
+                'user_id' => Auth::id(),
+                'trace' => $ex->getTraceAsString()
+            ]);
 
             return response()->json([
-                'error' => 'Falha ao criar marca!'
+                'error' => 'Falha ao criar marca!',
+                'message' => config('app.debug') ? $ex->getMessage() : 'Erro interno no servidor.'
             ], 500);
-
         }
     }
 
@@ -75,7 +70,7 @@ class BrandsController extends Controller
             $brands = Brands::where('user_id', Auth::id())->findOrFail($id);
             return response()->json($brands, 200);
         } catch (\Exception $ex) {
-            return response()->json(['error' => 'Falha ao buscar marca!'], 404);
+            return response()->json(['error' => 'Marca não encontrada!'], 404);
         }
     }
 
@@ -85,15 +80,11 @@ class BrandsController extends Controller
     #[Endpoint('Atualizar marca', 'Atualiza os dados de uma marca específica.')]
     public function update(UpdateBrandsRequest $request, string $id)
     {
-        $validatedData = $request->validated();
         try {
             $brands = Brands::where('user_id', Auth::id())->findOrFail($id);
-            $brands->update($validatedData);
+            $brands->update($request->validated());
             return response()->json($brands, 200);
         } catch (\Exception $ex) {
-            // 🔧 CORRIGIDO — dd($ex) interrompia a resposta em ambiente de
-            // produção/teste com var_dump bruto no meio do fluxo HTTP,
-            // impedindo o response()->json() de ser retornado. Removido.
             return response()->json(['error' => 'Falha ao atualizar marca!'], 500);
         }
     }
