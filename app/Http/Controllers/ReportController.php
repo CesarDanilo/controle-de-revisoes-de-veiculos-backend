@@ -345,16 +345,18 @@ class ReportController extends Controller
             $type = 'upcoming';
         }
 
+        $today = now('America/Sao_Paulo')->toDateString();
+
         $pastLatestRevisionsCte = "(
             select
                 revisions.*,
                 row_number() over (
                     partition by revisions.vehicle_id
-                    order by revisions.revision_date desc
+                    order by revisions.revision_date desc, revisions.id desc
                 ) as rn
             from revisions
             where revisions.user_id = '{$userId}'
-              and revisions.revision_date <= current_date
+            and revisions.revision_date <= '{$today}'
         ) as past_latest";
 
         $avgIntervalsCte = "(
@@ -378,7 +380,54 @@ class ReportController extends Controller
             group by vehicle_id
         ) as avg_intervals";
 
-        $informedOrEstimatedSql = "
+        // 🔧 FIX — antes, o "next_revision_date" usado era sempre o da revisão
+        // escolhida como "última" via row_number(order by revision_date desc).
+        // Quando várias revisões têm a MESMA revision_date (empate), o Postgres
+        // desempata de forma arbitrária, então uma revisão com "próxima revisão"
+        // bem distante podia "vencer" o desempate e esconder outra com data bem
+        // mais próxima. Agora buscamos, entre TODAS as revisões já concluídas do
+        // veículo que têm next_revision_date preenchido, a que tem a data mais
+        // PRÓXIMA — que é sempre a previsão correta a mostrar.
+        $informedCandidatesCte = "(
+            select
+                *,
+                row_number() over (
+                    partition by vehicle_id
+                    order by next_revision_date asc, id asc
+                ) as rn
+            from revisions
+            where user_id = '{$userId}'
+            and revision_date <= '{$today}'
+            and next_revision_date is not null
+        ) as informed_candidates";
+
+        $informedPartSql = "
+            select
+                people.id as person_id,
+                vehicle.id as vehicle_id,
+                informed_candidates.id as revision_id,
+                people.name as person_name,
+                vehicle.model as vehicle,
+                vehicle.license_plate as vehicle_plate,
+                informed_candidates.revision_date as last_revision,
+                informed_candidates.next_revision_date as informed_date,
+                informed_candidates.next_revision_km as informed_km,
+                informed_candidates.next_revision_date as predicted_date,
+                informed_candidates.next_revision_km as predicted_km,
+                false as is_estimated_date,
+                false as is_estimated_km,
+                false as is_scheduled,
+                null::numeric as avg_interval_days
+            from {$informedCandidatesCte}
+            join vehicle on vehicle.id = informed_candidates.vehicle_id
+            join people on people.id = vehicle.people_id
+            where informed_candidates.rn = 1
+        ";
+
+        // Fallback: só entra aqui um veículo cujas revisões concluídas NUNCA
+        // tiveram next_revision_date preenchido — aí sim usamos a estimativa
+        // pela média de intervalo, baseada na última revisão.
+        $estimatedPartSql = "
             select
                 people.id as person_id,
                 vehicle.id as vehicle_id,
@@ -387,27 +436,29 @@ class ReportController extends Controller
                 vehicle.model as vehicle,
                 vehicle.license_plate as vehicle_plate,
                 past_latest.revision_date as last_revision,
-                past_latest.next_revision_date as informed_date,
-                past_latest.next_revision_km as informed_km,
-                coalesce(
-                    past_latest.next_revision_date,
-                    (past_latest.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
-                ) as predicted_date,
-                coalesce(past_latest.next_revision_km, past_latest.km + avg_intervals.avg_km) as predicted_km,
-                (past_latest.next_revision_date is null and avg_intervals.avg_days is not null) as is_estimated_date,
-                (past_latest.next_revision_km is null and avg_intervals.avg_km is not null) as is_estimated_km,
+                null::date as informed_date,
+                null::numeric as informed_km,
+                (past_latest.revision_date + (avg_intervals.avg_days || ' days')::interval)::date as predicted_date,
+                past_latest.km + avg_intervals.avg_km as predicted_km,
+                true as is_estimated_date,
+                true as is_estimated_km,
                 false as is_scheduled,
                 avg_intervals.avg_days as avg_interval_days
             from {$pastLatestRevisionsCte}
             join vehicle on vehicle.id = past_latest.vehicle_id
             join people on people.id = vehicle.people_id
-            left join {$avgIntervalsCte} on avg_intervals.vehicle_id = past_latest.vehicle_id
+            join {$avgIntervalsCte} on avg_intervals.vehicle_id = past_latest.vehicle_id
             where past_latest.rn = 1
-              and coalesce(
-                    past_latest.next_revision_date,
-                    (past_latest.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
-                  ) is not null
+            and avg_intervals.avg_days is not null
+            and past_latest.vehicle_id not in (
+                select vehicle_id from revisions
+                where user_id = '{$userId}'
+                    and revision_date <= '{$today}'
+                    and next_revision_date is not null
+            )
         ";
+
+        $informedOrEstimatedSql = "({$informedPartSql}) union all ({$estimatedPartSql})";
 
         $scheduledSql = "
             select
@@ -430,7 +481,7 @@ class ReportController extends Controller
             join vehicle on vehicle.id = revisions.vehicle_id
             join people on people.id = vehicle.people_id
             where revisions.user_id = '{$userId}'
-              and revisions.revision_date > current_date
+            and revisions.revision_date > '{$today}'
         ";
 
         $unionSql = "({$informedOrEstimatedSql}) union all ({$scheduledSql})";
@@ -439,11 +490,11 @@ class ReportController extends Controller
 
         if ($type === 'overdue') {
             $query
-                ->where('predicted_date', '<', DB::raw('current_date'))
+                ->where('predicted_date', '<', $today)
                 ->orderByDesc('predicted_date');
         } else {
             $query
-                ->where('predicted_date', '>=', DB::raw('current_date'))
+                ->where('predicted_date', '>=', $today)
                 ->orderBy('predicted_date');
         }
 
