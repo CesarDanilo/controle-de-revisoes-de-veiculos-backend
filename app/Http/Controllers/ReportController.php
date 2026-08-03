@@ -29,6 +29,21 @@ class ReportController extends Controller
         return min($perPage, self::MAX_PER_PAGE);
     }
 
+    /**
+     * Lê o parâmetro limit da request, limitando ao máximo permitido
+     * para os endpoints de ranking (marcas/pessoas por revisões).
+     */
+    private function rankingLimit(Request $request): int
+    {
+        $limit = (int) $request->query('limit', 50);
+
+        if ($limit < 1) {
+            $limit = 50;
+        }
+
+        return min($limit, 200);
+    }
+
     // ---------- VEÍCULOS ----------
 
     // i. Todos os veículos
@@ -200,16 +215,6 @@ class ReportController extends Controller
     }
 
     // i-b. Resumo agregado das revisões no período (SEM paginação — só números)
-    // 🟢 NOVO — os KPI cards da tela de Relatórios (Revisões, Veículos
-    // atendidos, Clientes atendidos, Custo total, Ticket médio) não podem
-    // depender de contar/somar o array de revisionsByPeriod no frontend,
-    // porque esse array é só a PÁGINA ATUAL (15 itens por padrão). Com
-    // centenas/milhares de revisões no período, isso fazia os cards
-    // mostrarem sempre no máximo 15, mesmo aplicando o filtro de data
-    // corretamente. Este endpoint calcula os totais direto no banco via
-    // COUNT/SUM/COUNT DISTINCT, respeitando o mesmo filtro de data usado
-    // em revisionsByPeriod, e devolve só os números agregados — nenhum
-    // registro individual trafega pro frontend.
     #[Endpoint('Resumo de revisões no período', 'Retorna contagens e somas agregadas (total de revisões, veículos atendidos, clientes atendidos, custo total) para o período informado, calculadas direto no banco via COUNT/SUM/COUNT DISTINCT — não retorna os registros individuais.')]
     public function revisionsPeriodSummary(Request $request)
     {
@@ -245,34 +250,58 @@ class ReportController extends Controller
     }
 
     // ii. Marcas com maior número de revisões
-    #[Endpoint('Listar ranking de marcas por revisões', 'Retorna todas as marcas cadastradas do usuário autenticado, ordenadas pelo número de revisões.')]
+    #[Endpoint('Listar ranking de marcas por revisões', 'Retorna as marcas cadastradas do usuário autenticado, ordenadas pelo número de revisões. Aceita ?start= e ?end= para filtrar por período, e ?limit= (padrão 50, máx. 200).')]
     public function brandsRevisionRanking(Request $request)
     {
         $userId = $request->user()->id;
+        $start = $request->query('start');
+        $end = $request->query('end');
 
-        return DB::table('revisions')
+        $query = DB::table('revisions')
             ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
             ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
-            ->where('revisions.user_id', $userId)
+            ->where('revisions.user_id', $userId);
+
+        if ($start) {
+            $query->where('revisions.revision_date', '>=', $start);
+        }
+        if ($end) {
+            $query->where('revisions.revision_date', '<=', $end);
+        }
+
+        return $query
             ->select('brands.name as brand', DB::raw('count(*) as count'))
             ->groupBy('brands.name')
             ->orderByDesc('count')
+            ->limit($this->rankingLimit($request))
             ->get();
     }
 
     // iii. Pessoas com maior número de revisões
-    #[Endpoint('Listar ranking de pessoas por revisões', 'Retorna todas as pessoas cadastradas do usuário autenticado, ordenadas pelo número de revisões.')]
+    #[Endpoint('Listar ranking de pessoas por revisões', 'Retorna as pessoas cadastradas do usuário autenticado, ordenadas pelo número de revisões. Aceita ?start= e ?end= para filtrar por período, e ?limit= (padrão 50, máx. 200).')]
     public function peopleRevisionRanking(Request $request)
     {
         $userId = $request->user()->id;
+        $start = $request->query('start');
+        $end = $request->query('end');
 
-        return DB::table('revisions')
+        $query = DB::table('revisions')
             ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
-            ->where('revisions.user_id', $userId)
+            ->where('revisions.user_id', $userId);
+
+        if ($start) {
+            $query->where('revisions.revision_date', '>=', $start);
+        }
+        if ($end) {
+            $query->where('revisions.revision_date', '<=', $end);
+        }
+
+        return $query
             ->select('people.name as person_name', DB::raw('count(*) as count'))
             ->groupBy('people.name')
             ->orderByDesc('count')
+            ->limit($this->rankingLimit($request))
             ->get();
     }
 
