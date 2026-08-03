@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Knuckles\Scribe\Attributes\Endpoint;
 use Knuckles\Scribe\Attributes\Group;
-use Illuminate\Support\Facades\Cache;
 
 #[Group('Relatórios')]
 class ReportController extends Controller
@@ -30,8 +29,7 @@ class ReportController extends Controller
     }
 
     /**
-     * Lê o parâmetro limit da request, limitando ao máximo permitido
-     * para os endpoints de ranking (marcas/pessoas por revisões).
+     * Lê o parâmetro limit da request, limitando ao máximo permitido.
      */
     private function rankingLimit(Request $request): int
     {
@@ -44,19 +42,43 @@ class ReportController extends Controller
         return min($limit, 200);
     }
 
+    /**
+     * Aplica o filtro de período considerando datas cheias (00:00:00 até 23:59:59)
+     */
+    private function applyPeriod($query, Request $request, string $column = 'revisions.revision_date')
+    {
+        $start = $request->query('start');
+        $end = $request->query('end');
+
+        if ($start && $end) {
+            $query->whereBetween($column, ["{$start} 00:00:00", "{$end} 23:59:59"]);
+        } elseif ($start) {
+            $query->where($column, '>=', "{$start} 00:00:00");
+        } elseif ($end) {
+            $query->where($column, '<=', "{$end} 23:59:59");
+        }
+
+        return $query;
+    }
+
     // ---------- VEÍCULOS ----------
 
-    // i. Todos os veículos
-    #[Endpoint('Listar veículos', 'Retorna todos os veículos cadastrados do usuário autenticado.')]
+    // i. Veículos atendidos no período
+    #[Endpoint('Listar veículos', 'Retorna os veículos que realizaram revisões no período informado.')]
     public function allVehicles(Request $request)
     {
         $userId = $request->user()->id;
 
-        return DB::table('vehicle')
+        $query = DB::table('vehicle')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
             ->join('colors', 'colors.id', '=', 'vehicle.color_id')
-            ->where('vehicle.user_id', $userId)
+            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
+            ->where('vehicle.user_id', $userId);
+
+        $this->applyPeriod($query, $request);
+
+        return $query
             ->select(
                 'vehicle.id',
                 'vehicle.license_plate',
@@ -66,20 +88,26 @@ class ReportController extends Controller
                 'brands.name as brand',
                 'people.name as person_name'
             )
+            ->distinct()
             ->orderBy('vehicle.model')
             ->get();
     }
 
-    // ii. Todos os veículos por pessoa, ordenado por nome (PAGINADO)
-    #[Endpoint('Listar veículos por pessoa', 'Retorna todos os veículos cadastrados do usuário autenticado, agrupados por pessoa.')]
+    // ii. Veículos por pessoa atendidos no período (PAGINADO)
+    #[Endpoint('Listar veículos por pessoa', 'Retorna os veículos que realizaram revisões no período, agrupados por pessoa.')]
     public function vehiclesByPerson(Request $request)
     {
         $userId = $request->user()->id;
 
-        return DB::table('vehicle')
+        $query = DB::table('vehicle')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
-            ->where('vehicle.user_id', $userId)
+            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
+            ->where('vehicle.user_id', $userId);
+
+        $this->applyPeriod($query, $request);
+
+        return $query
             ->select(
                 'people.id as person_id',
                 'vehicle.id as vehicle_id',
@@ -88,110 +116,139 @@ class ReportController extends Controller
                 'vehicle.model',
                 'brands.name as brand'
             )
+            ->distinct()
             ->orderBy('people.name')
             ->paginate($this->perPage($request));
     }
 
-    // iii. Quem tem mais veículos: homens ou mulheres
-    #[Endpoint('Listar veículos por gênero', 'Retorna a quantidade de veículos cadastrados do usuário autenticado, separados por gênero.')]
+    // iii. Veículos com revisões no período por gênero
+    #[Endpoint('Listar veículos por gênero', 'Retorna a quantidade de veículos atendidos no período, separados por gênero.')]
     public function vehiclesByGender(Request $request)
     {
         $userId = $request->user()->id;
 
-        return DB::table('vehicle')
+        $query = DB::table('vehicle')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
-            ->where('vehicle.user_id', $userId)
-            ->select('people.gender', DB::raw('count(*) as count'))
+            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
+            ->where('vehicle.user_id', $userId);
+
+        $this->applyPeriod($query, $request);
+
+        return $query
+            ->select('people.gender', DB::raw('count(distinct vehicle.id) as count'))
             ->groupBy('people.gender')
             ->get();
     }
 
+    // iv. Ranking de veículos cadastrados/atendidos por marca
+    #[Endpoint('Ranking de marcas de veículos', 'Retorna a quantidade de veículos por marca com revisões no período.')]
     public function brandsRanking(Request $request)
     {
         $userId = $request->user()->id;
 
-        return Cache::remember("reports:brands-ranking:{$userId}", 300, function () use ($userId) {
-            return DB::table('vehicle')
-                ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
-                ->where('vehicle.user_id', $userId)
-                ->select('brands.name as brand', DB::raw('count(*) as count'))
-                ->groupBy('brands.name')
-                ->orderByDesc('count')
-                ->get()
-                ->toArray(); // 🔴 força array simples em vez de Collection
-        });
+        $query = DB::table('vehicle')
+            ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
+            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
+            ->where('vehicle.user_id', $userId);
+
+        $this->applyPeriod($query, $request);
+
+        return $query
+            ->select('brands.name as brand', DB::raw('count(distinct vehicle.id) as count'))
+            ->groupBy('brands.name')
+            ->orderByDesc('count')
+            ->get();
     }
 
-    // v. Totais de marcas do maior para o menor, separados por gênero
-    #[Endpoint('Listar marcas por gênero', 'Retorna todas as marcas cadastradas do usuário autenticado, separadas por gênero.')]
+    // v. Marcas atendidas no período separadas por gênero
+    #[Endpoint('Listar marcas por gênero', 'Retorna todas as marcas de veículos atendidos no período, separadas por gênero.')]
     public function brandsByGender(Request $request)
     {
         $userId = $request->user()->id;
 
-        return DB::table('vehicle')
+        $query = DB::table('vehicle')
             ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
-            ->where('vehicle.user_id', $userId)
+            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
+            ->where('vehicle.user_id', $userId);
+
+        $this->applyPeriod($query, $request);
+
+        return $query
             ->select(
                 'brands.name as brand',
-                DB::raw("count(*) filter (where people.gender = 'M') as male_count"),
-                DB::raw("count(*) filter (where people.gender = 'F') as female_count"),
-                DB::raw("count(*) filter (where people.gender not in ('M', 'F') or people.gender is null) as other_count")
+                DB::raw("count(distinct vehicle.id) filter (where people.gender = 'M') as male_count"),
+                DB::raw("count(distinct vehicle.id) filter (where people.gender = 'F') as female_count"),
+                DB::raw("count(distinct vehicle.id) filter (where people.gender not in ('M', 'F') or people.gender is null) as other_count")
             )
             ->groupBy('brands.name')
-            ->orderByDesc(DB::raw('count(*)'))
+            ->orderByDesc(DB::raw('count(distinct vehicle.id)'))
             ->get();
     }
 
     // ---------- PESSOAS ----------
 
-    // i. Todas as pessoas (PAGINADO)
-    #[Endpoint('Listar pessoas', 'Retorna todas as pessoas cadastradas do usuário autenticado.')]
+    // i. Pessoas que realizaram revisões no período (PAGINADO)
+    #[Endpoint('Listar pessoas', 'Retorna todas as pessoas que tiveram revisões no período informado.')]
     public function allPeople(Request $request)
     {
         $userId = $request->user()->id;
 
-        return DB::table('people')
-            ->where('user_id', $userId)
-            ->select('id', 'name', 'email', 'phone', 'document', 'gender', 'birth_date')
-            ->orderBy('name')
+        $query = DB::table('people')
+            ->join('vehicle', 'vehicle.people_id', '=', 'people.id')
+            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
+            ->where('people.user_id', $userId);
+
+        $this->applyPeriod($query, $request);
+
+        return $query
+            ->select('people.id', 'people.name', 'people.email', 'people.phone', 'people.document', 'people.gender', 'people.birth_date')
+            ->distinct()
+            ->orderBy('people.name')
             ->paginate($this->perPage($request));
     }
 
-    // ii. Pessoas por gênero, com idade média
-    #[Endpoint('Listar pessoas por gênero', 'Retorna a quantidade de pessoas cadastradas do usuário autenticado, separadas por gênero, com a idade média de cada grupo.')]
+    // ii. Pessoas atendidas no período por gênero com idade média
+    #[Endpoint('Listar pessoas por gênero', 'Retorna a quantidade e idade média das pessoas que realizaram revisões no período, separadas por gênero.')]
     public function peopleByGender(Request $request)
     {
         $userId = $request->user()->id;
 
-        return DB::table('people')
-            ->where('user_id', $userId)
-            ->whereNotNull('gender')
+        $query = DB::table('people')
+            ->join('vehicle', 'vehicle.people_id', '=', 'people.id')
+            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
+            ->where('people.user_id', $userId)
+            ->whereNotNull('people.gender');
+
+        $this->applyPeriod($query, $request);
+
+        return $query
             ->select(
-                'gender',
-                DB::raw('count(*) as count'),
-                DB::raw("round(avg(date_part('year', age(birth_date)))) as avg_age")
+                'people.gender',
+                DB::raw('count(distinct people.id) as count'),
+                DB::raw("round(avg(date_part('year', age(people.birth_date)))) as avg_age")
             )
-            ->groupBy('gender')
+            ->groupBy('people.gender')
             ->get();
     }
 
     // ---------- REVISÕES ----------
 
     // i. Revisões dentro de um período (PAGINADO)
-    #[Endpoint('Listar revisões por período', 'Retorna todas as revisões cadastradas do usuário autenticado, dentro de um período específico.')]
+    #[Endpoint('Listar revisões por período', 'Retorna todas as revisões cadastradas no período informado.')]
     public function revisionsByPeriod(Request $request)
     {
         $userId = $request->user()->id;
-        $start = $request->query('start');
-        $end = $request->query('end');
 
         $query = DB::table('revisions')
             ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
-            ->where('revisions.user_id', $userId)
+            ->where('revisions.user_id', $userId);
+
+        $this->applyPeriod($query, $request);
+
+        return $query
             ->select(
-                // IDs necessários no front para abrir o modal já na revisão clicada.
                 'revisions.id as revision_id',
                 'people.id as person_id',
                 'vehicle.id as vehicle_id',
@@ -200,39 +257,23 @@ class ReportController extends Controller
                 'revisions.cost',
                 'people.name as person_name',
                 'vehicle.model as vehicle'
-            );
-
-        if ($start) {
-            $query->where('revisions.revision_date', '>=', $start);
-        }
-        if ($end) {
-            $query->where('revisions.revision_date', '<=', $end);
-        }
-
-        return $query
+            )
             ->orderByDesc('revisions.revision_date')
             ->paginate($this->perPage($request));
     }
 
-    // i-b. Resumo agregado das revisões no período (SEM paginação — só números)
-    #[Endpoint('Resumo de revisões no período', 'Retorna contagens e somas agregadas (total de revisões, veículos atendidos, clientes atendidos, custo total) para o período informado, calculadas direto no banco via COUNT/SUM/COUNT DISTINCT — não retorna os registros individuais.')]
+    // i-b. Resumo agregado das revisões no período
+    #[Endpoint('Resumo de revisões no período', 'Retorna estatísticas consolidadas para o período informado.')]
     public function revisionsPeriodSummary(Request $request)
     {
         $userId = $request->user()->id;
-        $start = $request->query('start');
-        $end = $request->query('end');
 
         $query = DB::table('revisions')
             ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->where('revisions.user_id', $userId);
 
-        if ($start) {
-            $query->where('revisions.revision_date', '>=', $start);
-        }
-        if ($end) {
-            $query->where('revisions.revision_date', '<=', $end);
-        }
+        $this->applyPeriod($query, $request);
 
         $result = $query->selectRaw('
             count(*) as total_revisions,
@@ -249,25 +290,18 @@ class ReportController extends Controller
         ]);
     }
 
-    // ii. Marcas com maior número de revisões
-    #[Endpoint('Listar ranking de marcas por revisões', 'Retorna as marcas cadastradas do usuário autenticado, ordenadas pelo número de revisões. Aceita ?start= e ?end= para filtrar por período, e ?limit= (padrão 50, máx. 200).')]
+    // ii. Marcas com maior número de revisões no período
+    #[Endpoint('Listar ranking de marcas por revisões', 'Retorna marcas ordenadas por revisões no período.')]
     public function brandsRevisionRanking(Request $request)
     {
         $userId = $request->user()->id;
-        $start = $request->query('start');
-        $end = $request->query('end');
 
         $query = DB::table('revisions')
             ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
             ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
             ->where('revisions.user_id', $userId);
 
-        if ($start) {
-            $query->where('revisions.revision_date', '>=', $start);
-        }
-        if ($end) {
-            $query->where('revisions.revision_date', '<=', $end);
-        }
+        $this->applyPeriod($query, $request);
 
         return $query
             ->select('brands.name as brand', DB::raw('count(*) as count'))
@@ -277,25 +311,18 @@ class ReportController extends Controller
             ->get();
     }
 
-    // iii. Pessoas com maior número de revisões
-    #[Endpoint('Listar ranking de pessoas por revisões', 'Retorna as pessoas cadastradas do usuário autenticado, ordenadas pelo número de revisões. Aceita ?start= e ?end= para filtrar por período, e ?limit= (padrão 50, máx. 200).')]
+    // iii. Pessoas com maior número de revisões no período
+    #[Endpoint('Listar ranking de pessoas por revisões', 'Retorna pessoas ordenadas por revisões no período.')]
     public function peopleRevisionRanking(Request $request)
     {
         $userId = $request->user()->id;
-        $start = $request->query('start');
-        $end = $request->query('end');
 
         $query = DB::table('revisions')
             ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->where('revisions.user_id', $userId);
 
-        if ($start) {
-            $query->where('revisions.revision_date', '>=', $start);
-        }
-        if ($end) {
-            $query->where('revisions.revision_date', '<=', $end);
-        }
+        $this->applyPeriod($query, $request);
 
         return $query
             ->select('people.name as person_name', DB::raw('count(*) as count'))
@@ -305,11 +332,22 @@ class ReportController extends Controller
             ->get();
     }
 
-    // iv. Média de tempo entre revisões de uma mesma pessoa (PAGINADO)
-    #[Endpoint('Listar média de intervalo entre revisões por pessoa', 'Retorna a média de dias entre revisões de cada pessoa cadastrada do usuário autenticado.')]
+    // iv. Média de tempo entre revisões no período (PAGINADO)
+    #[Endpoint('Listar média de intervalo entre revisões por pessoa', 'Retorna a média de dias entre revisões de cada pessoa considerando as revisões do período.')]
     public function avgIntervalByPerson(Request $request)
     {
         $userId = $request->user()->id;
+        $start = $request->query('start');
+        $end = $request->query('end');
+
+        $wherePeriod = "";
+        if ($start && $end) {
+            $wherePeriod = " and revisions.revision_date between '{$start} 00:00:00' and '{$end} 23:59:59'";
+        } elseif ($start) {
+            $wherePeriod = " and revisions.revision_date >= '{$start} 00:00:00'";
+        } elseif ($end) {
+            $wherePeriod = " and revisions.revision_date <= '{$end} 23:59:59'";
+        }
 
         return DB::table(DB::raw("(
             select
@@ -322,20 +360,20 @@ class ReportController extends Controller
             from revisions
             join vehicle on vehicle.id = revisions.vehicle_id
             join people on people.id = vehicle.people_id
-            where revisions.user_id = '{$userId}'
+            where revisions.user_id = '{$userId}'{$wherePeriod}
         ) as intervals"))
             ->select(
                 'person_name',
                 DB::raw('round(avg(revision_date - previous_date)) as avg_days')
             )
             ->whereNotNull('previous_date')
-            ->groupBy('person_id', 'person_name') // agrupa por ID; nome só acompanha
+            ->groupBy('person_id', 'person_name')
             ->orderBy('person_name')
             ->paginate($this->perPage($request));
     }
 
-    // v. Próximas revisões previstas (PAGINADO — SEPARADO POR TIPO)
-    #[Endpoint('Listar próximas revisões', 'Retorna: (a) TODAS as revisões agendadas no futuro de cada veículo do usuário autenticado (uma entrada por revisão, sem limitar a uma por veículo), e (b) para veículos cuja última revisão já foi realizada, a previsão calculada (valor informado em next_revision_date ou estimativa pelo histórico). Aceita o parâmetro "type" (upcoming|overdue) para retornar cada grupo separadamente, com paginação independente.')]
+    // v. Próximas revisões previstas
+    #[Endpoint('Listar próximas revisões', 'Retorna as previsões de próximas revisões.')]
     public function upcomingRevisions(Request $request)
     {
         $userId = $request->user()->id;
@@ -380,14 +418,6 @@ class ReportController extends Controller
             group by vehicle_id
         ) as avg_intervals";
 
-        // 🔧 FIX — antes, o "next_revision_date" usado era sempre o da revisão
-        // escolhida como "última" via row_number(order by revision_date desc).
-        // Quando várias revisões têm a MESMA revision_date (empate), o Postgres
-        // desempata de forma arbitrária, então uma revisão com "próxima revisão"
-        // bem distante podia "vencer" o desempate e esconder outra com data bem
-        // mais próxima. Agora buscamos, entre TODAS as revisões já concluídas do
-        // veículo que têm next_revision_date preenchido, a que tem a data mais
-        // PRÓXIMA — que é sempre a previsão correta a mostrar.
         $informedCandidatesCte = "(
             select
                 *,
@@ -424,9 +454,6 @@ class ReportController extends Controller
             where informed_candidates.rn = 1
         ";
 
-        // Fallback: só entra aqui um veículo cujas revisões concluídas NUNCA
-        // tiveram next_revision_date preenchido — aí sim usamos a estimativa
-        // pela média de intervalo, baseada na última revisão.
         $estimatedPartSql = "
             select
                 people.id as person_id,

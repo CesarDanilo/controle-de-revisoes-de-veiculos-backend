@@ -20,6 +20,7 @@ use App\Http\Controllers\Api\CpfValidationController;
 
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LixeiraController;
+use App\Http\Controllers\ReportExportController;
 
 Route::apiResource('users', UserController::class);
 
@@ -87,4 +88,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/lixeira', [LixeiraController::class, 'index']);
     Route::post('/lixeira/{id}/restaurar', [LixeiraController::class, 'restaurar']);
     Route::delete('/lixeira/{id}', [LixeiraController::class, 'destruirPermanente']);
+});
+
+Route::middleware('auth:sanctum')->prefix('reports')->group(function () {
+    Route::post('exports', [ReportExportController::class, 'store']);
+    Route::get('exports/{id}', [ReportExportController::class, 'show']);
+    Route::get('exports/{id}/download', [ReportExportController::class, 'download'])
+        ->name('reports.exports.download');
 });
