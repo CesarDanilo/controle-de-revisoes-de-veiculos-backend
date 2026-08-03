@@ -142,7 +142,7 @@ class ReportController extends Controller
             ->orderBy('name')
             ->paginate($this->perPage($request));
     }
-    
+
     // ii. Pessoas por gênero, com idade média
     #[Endpoint('Listar pessoas por gênero', 'Retorna a quantidade de pessoas cadastradas do usuário autenticado, separadas por gênero, com a idade média de cada grupo.')]
     public function peopleByGender(Request $request)
@@ -163,7 +163,6 @@ class ReportController extends Controller
 
     // ---------- REVISÕES ----------
 
-    // i. Revisões dentro de um período (PAGINADO)
     // i. Revisões dentro de um período (PAGINADO)
     #[Endpoint('Listar revisões por período', 'Retorna todas as revisões cadastradas do usuário autenticado, dentro de um período específico.')]
     public function revisionsByPeriod(Request $request)
@@ -263,19 +262,42 @@ class ReportController extends Controller
             ->paginate($this->perPage($request));
     }
 
-    // v. Próximas revisões previstas (PAGINADO)
-    #[Endpoint('Listar próximas revisões', 'Retorna a previsão da próxima revisão de cada veículo do usuário autenticado, usando o valor informado ou, na ausência dele, uma estimativa baseada no histórico do veículo.')]
-    // Método upcomingRevisions() dentro de ReportController.php
-    // 🟢 ALTERADO — só o bloco ->select(...) mudou (2 colunas novas no final):
-    // 'vehicle.license_plate as vehicle_plate' e o avg_days do CTE de intervalos.
-    // O restante do método (CTEs $latestRevisions e $avgIntervals, joins, where,
-    // orderBy, paginate) continua idêntico ao que você já tem.
-
+    // v. Próximas revisões previstas (PAGINADO — SEPARADO POR TIPO)
+    #[Endpoint('Listar próximas revisões', 'Retorna: (a) TODAS as revisões agendadas no futuro de cada veículo do usuário autenticado (uma entrada por revisão, sem limitar a uma por veículo), e (b) para veículos cuja última revisão já foi realizada, a previsão calculada (valor informado em next_revision_date ou estimativa pelo histórico). Aceita o parâmetro "type" (upcoming|overdue) para retornar cada grupo separadamente, com paginação independente.')]
     public function upcomingRevisions(Request $request)
     {
         $userId = $request->user()->id;
 
-        $latestRevisions = DB::raw("(
+        $type = $request->query('type', 'upcoming');
+        if (! in_array($type, ['upcoming', 'overdue'], true)) {
+            $type = 'upcoming';
+        }
+
+        // 🔧 CORRIGIDO — CAUSA RAIZ DO BUG: a CTE antiga (latest_revisions)
+        // pegava, via row_number()/rn=1, SÓ UMA revisão por veículo — a de
+        // revision_date mais alta, seja ela passada ou futura. Isso fazia
+        // uma revisão agendada mais distante (ex: 31/08) "esconder"
+        // completamente outra revisão agendada mais próxima do mesmo
+        // veículo (ex: 08/08), porque só a mais distante ganhava o rn=1.
+        // Um veículo pode ter VÁRIAS revisões agendadas ao mesmo tempo, e
+        // todas precisam aparecer — não só uma por veículo.
+        //
+        // A correção separa duas lógicas diferentes que estavam
+        // erroneamente fundidas numa única CTE:
+        //
+        //  BLOCO A — pastLatestRevisions: contém só revisões JÁ REALIZADAS
+        //  (revision_date <= hoje). Aqui SIM faz sentido "1 por veículo"
+        //  (rn = 1), pois é usado só para CALCULAR uma previsão (informada
+        //  via next_revision_date, ou estimada pela média histórica).
+        //
+        //  BLOCO B — scheduledRevisions: contém TODAS as revisões com
+        //  revision_date no FUTURO, sem nenhum filtro de "só uma por
+        //  veículo" — cada revisão agendada vira sua própria entrada na
+        //  lista, então um veículo com 2, 3, N revisões agendadas mostra
+        //  todas elas.
+        //
+        // Os dois blocos são unidos (UNION ALL) e paginados juntos.
+        $pastLatestRevisionsCte = "(
             select
                 revisions.*,
                 row_number() over (
@@ -284,9 +306,10 @@ class ReportController extends Controller
                 ) as rn
             from revisions
             where revisions.user_id = '{$userId}'
-        ) as latest_revisions");
+              and revisions.revision_date <= current_date
+        ) as past_latest";
 
-        $avgIntervals = DB::raw("(
+        $avgIntervalsCte = "(
             select
                 vehicle_id,
                 round(avg(date_diff)) as avg_days,
@@ -305,43 +328,90 @@ class ReportController extends Controller
             ) as diffs
             where date_diff is not null
             group by vehicle_id
-        ) as avg_intervals");
+        ) as avg_intervals";
 
-        return DB::table($latestRevisions)
-            ->join('vehicle', 'vehicle.id', '=', 'latest_revisions.vehicle_id')
-            ->join('people', 'people.id', '=', 'vehicle.people_id')
-            ->leftJoin($avgIntervals, 'avg_intervals.vehicle_id', '=', 'latest_revisions.vehicle_id')
-            ->select(
-                'people.id as person_id',
-                'vehicle.id as vehicle_id',
-                'latest_revisions.id as revision_id',
-                'people.name as person_name',
-                'vehicle.model as vehicle',
-                // 🟢 NOVO — o card precisa da placa pra montar o label "Modelo · Placa"
-                'vehicle.license_plate as vehicle_plate',
-                'latest_revisions.revision_date as last_revision',
-                'latest_revisions.next_revision_date as informed_date',
-                'latest_revisions.next_revision_km as informed_km',
-                DB::raw("
-                    coalesce(
-                        latest_revisions.next_revision_date,
-                        (latest_revisions.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
-                    ) as predicted_date
-                "),
-                DB::raw('coalesce(latest_revisions.next_revision_km, latest_revisions.km + avg_intervals.avg_km) as predicted_km'),
-                DB::raw('(latest_revisions.next_revision_date is null and avg_intervals.avg_days is not null) as is_estimated_date'),
-                DB::raw('(latest_revisions.next_revision_km is null and avg_intervals.avg_km is not null) as is_estimated_km'),
-                // 🟢 NOVO — o card usa isso pro texto "a cada ~X dias"
-                'avg_intervals.avg_days as avg_interval_days'
-            )
-            ->where('latest_revisions.rn', 1)
-            ->whereRaw("
+        // BLOCO A — previsão calculada (informada/estimada), 1 por veículo,
+        // baseada apenas na última revisão JÁ REALIZADA.
+        $informedOrEstimatedSql = "
+            select
+                people.id as person_id,
+                vehicle.id as vehicle_id,
+                past_latest.id as revision_id,
+                people.name as person_name,
+                vehicle.model as vehicle,
+                vehicle.license_plate as vehicle_plate,
+                past_latest.revision_date as last_revision,
+                past_latest.next_revision_date as informed_date,
+                past_latest.next_revision_km as informed_km,
                 coalesce(
-                    latest_revisions.next_revision_date,
-                    (latest_revisions.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
-                ) is not null
-            ")
-            ->orderBy('predicted_date')
-            ->paginate($this->perPage($request));
+                    past_latest.next_revision_date,
+                    (past_latest.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
+                ) as predicted_date,
+                coalesce(past_latest.next_revision_km, past_latest.km + avg_intervals.avg_km) as predicted_km,
+                (past_latest.next_revision_date is null and avg_intervals.avg_days is not null) as is_estimated_date,
+                (past_latest.next_revision_km is null and avg_intervals.avg_km is not null) as is_estimated_km,
+                false as is_scheduled,
+                avg_intervals.avg_days as avg_interval_days
+            from {$pastLatestRevisionsCte}
+            join vehicle on vehicle.id = past_latest.vehicle_id
+            join people on people.id = vehicle.people_id
+            left join {$avgIntervalsCte} on avg_intervals.vehicle_id = past_latest.vehicle_id
+            where past_latest.rn = 1
+              and coalesce(
+                    past_latest.next_revision_date,
+                    (past_latest.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
+                  ) is not null
+        ";
+
+        // BLOCO B — TODAS as revisões agendadas no futuro, sem limitar a
+        // uma por veículo. predicted_date é a própria data da revisão.
+        $scheduledSql = "
+            select
+                people.id as person_id,
+                vehicle.id as vehicle_id,
+                revisions.id as revision_id,
+                people.name as person_name,
+                vehicle.model as vehicle,
+                vehicle.license_plate as vehicle_plate,
+                revisions.revision_date as last_revision,
+                revisions.next_revision_date as informed_date,
+                revisions.next_revision_km as informed_km,
+                revisions.revision_date as predicted_date,
+                revisions.km as predicted_km,
+                false as is_estimated_date,
+                false as is_estimated_km,
+                true as is_scheduled,
+                null::numeric as avg_interval_days
+            from revisions
+            join vehicle on vehicle.id = revisions.vehicle_id
+            join people on people.id = vehicle.people_id
+            where revisions.user_id = '{$userId}'
+              and revisions.revision_date > current_date
+        ";
+
+        // 🟢 NOVO — como "predicted_date" agora é uma coluna real da tabela
+        // derivada "upcoming_predictions" (resultado do UNION ALL), não um
+        // simples alias dentro do mesmo nível de SELECT, o Postgres permite
+        // referenciá-la normalmente em WHERE/ORDER BY — sem o problema que
+        // tivemos antes com orderByRaw('abs(predicted_date - ...)').
+        $unionSql = "({$informedOrEstimatedSql}) union all ({$scheduledSql})";
+
+        $query = DB::table(DB::raw("({$unionSql}) as upcoming_predictions"));
+
+        if ($type === 'overdue') {
+            // atrasadas: predicted_date < hoje. Mais urgente (mais recente) primeiro.
+            // Revisões agendadas (bloco B) nunca caem aqui — sua predicted_date
+            // é sempre > current_date por definição (revision_date > current_date).
+            $query
+                ->where('predicted_date', '<', DB::raw('current_date'))
+                ->orderByDesc('predicted_date');
+        } else {
+            // próximas: predicted_date >= hoje. Mais próxima primeiro.
+            $query
+                ->where('predicted_date', '>=', DB::raw('current_date'))
+                ->orderBy('predicted_date');
+        }
+
+        return $query->paginate($this->perPage($request));
     }
 }
