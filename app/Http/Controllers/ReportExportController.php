@@ -22,7 +22,7 @@ class ReportExportController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'type' => ['required', Rule::in(['full', 'revisions', 'vehicles', 'people'])],
+            'type' => ['required', Rule::in(['full', 'revisions', 'vehicles', 'people', 'overview', 'upcoming', 'period_revisions'])],
             'start' => ['nullable', 'date'],
             'end' => ['nullable', 'date'],
         ]);
