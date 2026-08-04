@@ -109,7 +109,13 @@
             @forelse ($rows as $row)
                 <tr>
                     @foreach ($columns as $column)
-                        <td>{{ is_object($row) ? ($row->{$column['key']} ?? '—') : ($row[$column['key']] ?? '—') }}</td>
+                        @php
+                            $cellValue = is_object($row) ? ($row->{$column['key']} ?? null) : ($row[$column['key']] ?? null);
+                            if (is_numeric($cellValue) && strpos((string) $cellValue, '.') !== false) {
+                                $cellValue = round($cellValue);
+                            }
+                        @endphp
+                        <td>{{ $cellValue ?? '—' }}</td>
                     @endforeach
                 </tr>
             @empty

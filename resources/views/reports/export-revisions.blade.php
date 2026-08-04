@@ -135,7 +135,7 @@
             @forelse ($avgIntervalRows as $row)
                 <tr>
                     <td class="font-bold">{{ $row['person_name'] }}</td>
-                    <td class="text-right"><span class="badge">{{ $row['avg_days'] ?? '—' }}</span></td>
+                    <td class="text-right"><span class="badge">{{ isset($row['avg_days']) ? round(abs($row['avg_days'])) . ' dias' : '—' }}</span></td>
                 </tr>
             @empty
                 <tr class="empty-row">
