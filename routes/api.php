@@ -22,6 +22,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\LixeiraController;
 use App\Http\Controllers\ReportExportController;
 
+
 Route::apiResource('users', UserController::class);
 
 Route::post('login', [AuthController::class, 'login']);

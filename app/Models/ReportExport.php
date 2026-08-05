@@ -16,6 +16,8 @@ class ReportExport extends Model
         'type',
         'status',
         'params',
+        'params_hash',
+        'data_version',
         'file_path',
         'error_message',
     ];
