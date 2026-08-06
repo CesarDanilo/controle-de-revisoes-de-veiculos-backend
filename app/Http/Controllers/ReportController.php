@@ -94,26 +94,6 @@ class ReportController extends Controller
     }
 
     // ii. Veículos por pessoa atendidos no período (PAGINADO)
-    //
-    // 🔴 CORRIGIDO — bug de paginação com contagem errada.
-    //
-    // A query antiga fazia JOIN de vehicle -> people -> brands -> revisions
-    // e usava ->distinct()->paginate(). O problema: o Laravel paginate()
-    // calcula o total de registros com um `SELECT COUNT(*)`, e o
-    // compilador de SQL do Laravel só aplica DISTINCT nessa contagem
-    // quando colunas específicas são passadas — com COUNT(*) puro (que é
-    // o padrão do paginate()), o distinct() é IGNORADO na contagem.
-    //
-    // Resultado: o total contava 1 linha por CADA revisão do veículo (por
-    // causa do JOIN com `revisions`), gerando um total de páginas muito
-    // maior que a quantidade real de veículos — exatamente o mesmo bug
-    // relatado em allPeople() abaixo.
-    //
-    // Correção: primeiro resolve, num subquery, quais vehicle_id têm
-    // revisão dentro do período (sem duplicar por JOIN com people/brands),
-    // e só então pagina a query final SEM juntar com `revisions` — assim
-    // não existe linha duplicada e o COUNT(*) da paginação já é exato,
-    // sem precisar de distinct().
     #[Endpoint('Listar veículos por pessoa', 'Retorna os veículos que realizaram revisões no período, agrupados por pessoa.')]
     public function vehiclesByPerson(Request $request)
     {
@@ -215,20 +195,7 @@ class ReportController extends Controller
 
     // ---------- PESSOAS ----------
 
- // i. Pessoas que realizaram revisões no período (PAGINADO)
-    //
-    // 🔴 CORRIGIDO — a query antiga sempre fazia JOIN com vehicle+revisions,
-    // então uma pessoa cadastrada SEM nenhuma revisão nunca aparecia na
-    // listagem "Todas as pessoas", mesmo sem nenhum filtro de período
-    // selecionado. Isso ficou escondido enquanto a paginação estava
-    // quebrada (contagem de 58, várias páginas vazias); ao corrigir a
-    // contagem, o comportamento real apareceu: 15 de 16 pessoas, e como
-    // 15 é o per_page padrão, nem a paginação aparecia.
-    //
-    // Agora: sem start/end -> lista TODAS as pessoas do usuário. Com
-    // start/end -> continua filtrando só quem teve revisão no período
-    // (comportamento esperado quando a tela de Relatórios está com um
-    // período selecionado).
+    // i. Pessoas que realizaram revisões no período (PAGINADO)
     #[Endpoint('Listar pessoas', 'Retorna todas as pessoas cadastradas do usuário, ou apenas as que tiveram revisões no período informado.')]
     public function allPeople(Request $request)
     {
@@ -239,7 +206,6 @@ class ReportController extends Controller
         $start = $request->query('start');
         $end = $request->query('end');
 
-        // Só restringe por revisões se um período foi realmente informado.
         if ($start || $end) {
             $peopleIdsQuery = DB::table('revisions')
                 ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
@@ -425,6 +391,27 @@ class ReportController extends Controller
     }
 
     // v. Próximas revisões previstas
+    //
+    // 🔧 CORRIGIDO — bug: uma vez que UMA revisão real (agendada, com
+    // revision_date futuro) era criada para um veículo, TODAS as demais
+    // previsões informadas/estimadas daquele veículo desapareciam da
+    // lista — mesmo que representassem uma pendência DIFERENTE (ex: duas
+    // revisões passadas distintas com a mesma next_revision_date, onde só
+    // uma delas foi "concretizada" com uma revisão agendada). Isso
+    // acontecia porque a exclusão antiga (scheduledVehicleIdsSql) era
+    // feita POR VEÍCULO: bastava existir 1 revisão agendada no futuro
+    // para o veículo inteiro sumir das previsões informadas/estimadas,
+    // inclusive as que não tinham nenhuma relação com a data agendada.
+    //
+    // A correção troca a exclusão "por veículo" por uma exclusão "por
+    // data": para cada (veículo, data prevista), conta quantas previsões
+    // informadas existem com aquela data e quantas revisões JÁ AGENDADAS
+    // cobrem essa mesma data — só descarta o excedente já coberto,
+    // preservando as previsões que ainda não têm uma revisão agendada
+    // correspondente. Isso é o que permite o frontend voltar a agrupar
+    // corretamente por veículo e reabrir o modal de escolha
+    // (PendingRevisionsPickerModal) quando ainda restar mais de uma
+    // pendência pro mesmo veículo.
     #[Endpoint('Listar próximas revisões', 'Retorna as previsões de próximas revisões.')]
     public function upcomingRevisions(Request $request)
     {
@@ -470,18 +457,58 @@ class ReportController extends Controller
             group by vehicle_id
         ) as avg_intervals";
 
+        // 🔧 CORRIGIDO — antes usava row_number() ordenado por
+        // (next_revision_date asc, id asc), o que sempre elegia UMA ÚNICA
+        // linha por veículo (rn = 1) — mesmo quando duas revisões
+        // diferentes informavam a MESMA next_revision_date (empate). Isso
+        // descartava a segunda pendência silenciosamente: o usuário
+        // cadastrava 2 datas iguais, mas só via 1 delas nas previsões, e
+        // o modal de seleção (PendingRevisionsPickerModal) nunca tinha
+        // chance de aparecer, porque o backend já tinha eliminado o
+        // empate antes de chegar no frontend.
+        //
+        // Trocado para rank(): quando há empate na MENOR next_revision_date
+        // do veículo, TODAS as linhas empatadas recebem rn = 1 (em vez de
+        // só a de menor id "vencer" e a outra sumir). Datas estritamente
+        // maiores continuam de fora — só o empate na data mais próxima é
+        // preservado. Com isso, as duas previsões empatadas chegam ao
+        // frontend, que já sabe agrupar por veículo (groupByVehicle) e
+        // abrir o modal de escolha quando há mais de uma previsão
+        // pendente para o mesmo veículo.
+        //
+        // 🟢 NOVO — date_rn: numera as previsões dentro de cada grupo
+        // (mesmo vehicle_id + mesma next_revision_date), usado logo
+        // abaixo para descartar só as que já foram "concretizadas" por
+        // uma revisão agendada com a mesma data, e não o veículo inteiro.
         $informedCandidatesCte = "(
             select
                 *,
-                row_number() over (
+                rank() over (
                     partition by vehicle_id
-                    order by next_revision_date asc, id asc
-                ) as rn
+                    order by next_revision_date asc
+                ) as rn,
+                row_number() over (
+                    partition by vehicle_id, next_revision_date
+                    order by id
+                ) as date_rn
             from revisions
             where user_id = '{$userId}'
             and revision_date <= '{$today}'
             and next_revision_date is not null
         ) as informed_candidates";
+
+        // 🟢 NOVO — para cada (veículo, data), conta quantas revisões já
+        // agendadas (revision_date futuro) existem com aquela data
+        // exata. Usado para descartar só o número de previsões
+        // informadas/estimadas já "cobertas" por uma revisão agendada
+        // real, e não o veículo inteiro.
+        $scheduledDateCountsCte = "(
+            select vehicle_id, revision_date, count(*) as cnt
+            from revisions
+            where user_id = '{$userId}'
+            and revision_date > '{$today}'
+            group by vehicle_id, revision_date
+        ) as scheduled_date_counts";
 
         $informedPartSql = "
             select
@@ -503,7 +530,11 @@ class ReportController extends Controller
             from {$informedCandidatesCte}
             join vehicle on vehicle.id = informed_candidates.vehicle_id
             join people on people.id = vehicle.people_id
+            left join {$scheduledDateCountsCte}
+                on scheduled_date_counts.vehicle_id = informed_candidates.vehicle_id
+                and scheduled_date_counts.revision_date = informed_candidates.next_revision_date
             where informed_candidates.rn = 1
+            and informed_candidates.date_rn > coalesce(scheduled_date_counts.cnt, 0)
         ";
 
         $estimatedPartSql = "
@@ -534,6 +565,13 @@ class ReportController extends Controller
                 where user_id = '{$userId}'
                     and revision_date <= '{$today}'
                     and next_revision_date is not null
+            )
+            and not exists (
+                select 1 from revisions as sched_est
+                where sched_est.user_id = '{$userId}'
+                and sched_est.vehicle_id = past_latest.vehicle_id
+                and sched_est.revision_date > '{$today}'
+                and sched_est.revision_date = (past_latest.revision_date + (avg_intervals.avg_days || ' days')::interval)::date
             )
         ";
 
