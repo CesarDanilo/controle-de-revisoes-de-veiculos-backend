@@ -94,18 +94,46 @@ class ReportController extends Controller
     }
 
     // ii. Veículos por pessoa atendidos no período (PAGINADO)
+    //
+    // 🔴 CORRIGIDO — bug de paginação com contagem errada.
+    //
+    // A query antiga fazia JOIN de vehicle -> people -> brands -> revisions
+    // e usava ->distinct()->paginate(). O problema: o Laravel paginate()
+    // calcula o total de registros com um `SELECT COUNT(*)`, e o
+    // compilador de SQL do Laravel só aplica DISTINCT nessa contagem
+    // quando colunas específicas são passadas — com COUNT(*) puro (que é
+    // o padrão do paginate()), o distinct() é IGNORADO na contagem.
+    //
+    // Resultado: o total contava 1 linha por CADA revisão do veículo (por
+    // causa do JOIN com `revisions`), gerando um total de páginas muito
+    // maior que a quantidade real de veículos — exatamente o mesmo bug
+    // relatado em allPeople() abaixo.
+    //
+    // Correção: primeiro resolve, num subquery, quais vehicle_id têm
+    // revisão dentro do período (sem duplicar por JOIN com people/brands),
+    // e só então pagina a query final SEM juntar com `revisions` — assim
+    // não existe linha duplicada e o COUNT(*) da paginação já é exato,
+    // sem precisar de distinct().
     #[Endpoint('Listar veículos por pessoa', 'Retorna os veículos que realizaram revisões no período, agrupados por pessoa.')]
     public function vehiclesByPerson(Request $request)
     {
         $userId = $request->user()->id;
 
+        $revisionVehicleIdsQuery = DB::table('revisions')
+            ->join('vehicle as v', 'v.id', '=', 'revisions.vehicle_id')
+            ->where('v.user_id', $userId);
+
+        $this->applyPeriod($revisionVehicleIdsQuery, $request, 'revisions.revision_date');
+
+        $vehicleIdsSubquery = $revisionVehicleIdsQuery
+            ->select('revisions.vehicle_id')
+            ->distinct();
+
         $query = DB::table('vehicle')
             ->join('people', 'people.id', '=', 'vehicle.people_id')
             ->join('brands', 'brands.id', '=', 'vehicle.brand_id')
-            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
-            ->where('vehicle.user_id', $userId);
-
-        $this->applyPeriod($query, $request);
+            ->where('vehicle.user_id', $userId)
+            ->whereIn('vehicle.id', $vehicleIdsSubquery);
 
         return $query
             ->select(
@@ -116,7 +144,6 @@ class ReportController extends Controller
                 'vehicle.model',
                 'brands.name as brand'
             )
-            ->distinct()
             ->orderBy('people.name')
             ->paginate($this->perPage($request));
     }
@@ -188,22 +215,47 @@ class ReportController extends Controller
 
     // ---------- PESSOAS ----------
 
-    // i. Pessoas que realizaram revisões no período (PAGINADO)
-    #[Endpoint('Listar pessoas', 'Retorna todas as pessoas que tiveram revisões no período informado.')]
+ // i. Pessoas que realizaram revisões no período (PAGINADO)
+    //
+    // 🔴 CORRIGIDO — a query antiga sempre fazia JOIN com vehicle+revisions,
+    // então uma pessoa cadastrada SEM nenhuma revisão nunca aparecia na
+    // listagem "Todas as pessoas", mesmo sem nenhum filtro de período
+    // selecionado. Isso ficou escondido enquanto a paginação estava
+    // quebrada (contagem de 58, várias páginas vazias); ao corrigir a
+    // contagem, o comportamento real apareceu: 15 de 16 pessoas, e como
+    // 15 é o per_page padrão, nem a paginação aparecia.
+    //
+    // Agora: sem start/end -> lista TODAS as pessoas do usuário. Com
+    // start/end -> continua filtrando só quem teve revisão no período
+    // (comportamento esperado quando a tela de Relatórios está com um
+    // período selecionado).
+    #[Endpoint('Listar pessoas', 'Retorna todas as pessoas cadastradas do usuário, ou apenas as que tiveram revisões no período informado.')]
     public function allPeople(Request $request)
     {
         $userId = $request->user()->id;
 
-        $query = DB::table('people')
-            ->join('vehicle', 'vehicle.people_id', '=', 'people.id')
-            ->join('revisions', 'revisions.vehicle_id', '=', 'vehicle.id')
-            ->where('people.user_id', $userId);
+        $query = DB::table('people')->where('people.user_id', $userId);
 
-        $this->applyPeriod($query, $request);
+        $start = $request->query('start');
+        $end = $request->query('end');
+
+        // Só restringe por revisões se um período foi realmente informado.
+        if ($start || $end) {
+            $peopleIdsQuery = DB::table('revisions')
+                ->join('vehicle', 'vehicle.id', '=', 'revisions.vehicle_id')
+                ->where('vehicle.user_id', $userId);
+
+            $this->applyPeriod($peopleIdsQuery, $request, 'revisions.revision_date');
+
+            $peopleIdsSubquery = $peopleIdsQuery
+                ->select('vehicle.people_id')
+                ->distinct();
+
+            $query->whereIn('people.id', $peopleIdsSubquery);
+        }
 
         return $query
             ->select('people.id', 'people.name', 'people.email', 'people.phone', 'people.document', 'people.gender', 'people.birth_date')
-            ->distinct()
             ->orderBy('people.name')
             ->paginate($this->perPage($request));
     }
