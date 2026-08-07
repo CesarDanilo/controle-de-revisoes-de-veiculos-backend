@@ -398,7 +398,7 @@ class ReportController extends Controller
             ->paginate($this->perPage($request));
     }
 
-    // v. Próximas revisões previstas
+// v. Próximas revisões previstas
     #[Endpoint('Listar próximas revisões', 'Retorna as previsões de próximas revisões.')]
     public function upcomingRevisions(Request $request)
     {
@@ -469,6 +469,11 @@ class ReportController extends Controller
             group by vehicle_id, revision_date
         ) as scheduled_date_counts";
 
+        // 🔧 CORRIGIDO — description adicionado logo após vehicle_plate,
+        // na MESMA posição nas três sub-queries abaixo (informedPartSql,
+        // estimatedPartSql, scheduledSql). Num UNION ALL as colunas casam
+        // por POSIÇÃO, não por nome — então a ordem tem que ser idêntica
+        // nas três, senão o Postgres cruza colunas erradas silenciosamente.
         $informedPartSql = "
             select
                 people.id as person_id,
@@ -477,6 +482,7 @@ class ReportController extends Controller
                 people.name as person_name,
                 vehicle.model as vehicle,
                 vehicle.license_plate as vehicle_plate,
+                informed_candidates.description as description,
                 informed_candidates.revision_date as last_revision,
                 informed_candidates.next_revision_date as informed_date,
                 informed_candidates.next_revision_km as informed_km,
@@ -504,6 +510,7 @@ class ReportController extends Controller
                 people.name as person_name,
                 vehicle.model as vehicle,
                 vehicle.license_plate as vehicle_plate,
+                past_latest.description as description,
                 past_latest.revision_date as last_revision,
                 null::date as informed_date,
                 null::numeric as informed_km,
@@ -544,6 +551,7 @@ class ReportController extends Controller
                 people.name as person_name,
                 vehicle.model as vehicle,
                 vehicle.license_plate as vehicle_plate,
+                revisions.description as description,
                 revisions.revision_date as last_revision,
                 revisions.next_revision_date as informed_date,
                 revisions.next_revision_km as informed_km,
